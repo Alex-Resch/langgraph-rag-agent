@@ -88,3 +88,57 @@ def build_graph():
     graph.add_edge("tools", "call_llm")
 
     return graph.compile()
+
+@cl.on_chat_start
+async def on_chat_start():
+    # Each user gets their own ChromaDB instance in RAM
+    vectorstore = Chroma(embedding_function=embeddings)  # no persist_directory!
+    cl.user_session.set("vectorstore", vectorstore)
+
+    await cl.ChatSettings(
+        [
+            cl.input_widget.Select(
+                id="model",
+                label="Select model",
+                values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b"],
+                initial_value="gemini/gemini-2.5-flash",
+            )
+        ]
+    ).send()
+
+    cl.user_session.set("model", "gemini/gemini-2.5-flash")
+    await cl.Message(content="Hello! You can upload PDF documents and I will answer questions about them. If I find nothing, I will search the web.").send()
+
+
+@cl.on_settings_update
+async def on_settings_update(settings):
+    cl.user_session.set("model", settings["model"])
+
+
+@cl.on_message
+async def on_message(message: cl.Message):
+    model = cl.user_session.get("model", "gemini/gemini-2.5-flash")
+
+    if message.elements:
+        for element in message.elements:
+            if element.mime == "application/pdf":
+                count = await process_document(element.path)
+                await cl.Message(content=f"✅ Document processed! {count} chunks stored.").send()
+            else:
+                await cl.Message(content=f"❌ Only PDF files are supported. You uploaded '{element.name}'.").send()
+        return
+
+    app = build_graph()
+    answer = cl.Message(content="")
+    await answer.send()
+
+    async for chunk in app.astream(
+        {
+            "messages": [{"role": "user", "content": message.content}],
+            "model": model
+        },
+        stream_mode="values"
+    ):
+        last = chunk["messages"][-1]
+        if hasattr(last, "content") and last.content:
+            await answer.stream_token(last.content)

@@ -1,5 +1,5 @@
 from typing import TypedDict, Annotated
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.tools import tool
@@ -12,102 +12,94 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
 
-
 load_dotenv()
+
 
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     model: str
 
 
-# Only embeddings are global – ChromaDB is created per user session
 embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
-async def process_document(file_path: str):
-    """Load PDF → split into chunks → store as vectors in ChromaDB."""
-
+async def process_document(file_path: str) -> int:
     loader = PyPDFLoader(file_path)
     pages = loader.load()
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
-    )
-    chunks = splitter.split_documents(pages)
-
-    # Store vectors in session ChromaDB (no persist_directory!)
-    vectorstore = cl.user_session.get("vectorstore")
-    vectorstore.add_documents(chunks)
-
+    chunks = RecursiveCharacterTextSplitter(
+        chunk_size=500, chunk_overlap=50
+    ).split_documents(pages)
+    cl.user_session.get("vectorstore").add_documents(chunks)
     return len(chunks)
 
 
 @tool
 def search_documents(query: str) -> str:
     """Search uploaded documents for relevant information."""
-
     vectorstore = cl.user_session.get("vectorstore")
     results = vectorstore.similarity_search(query, k=5)
-
     if not results:
         return "NO_DOCUMENTS_FOUND"
-
-    context = "\n\n".join([doc.page_content for doc in results])
-    return f"Found in documents:\n{context}"
+    return "Found in documents:\n\n" + "\n\n".join(d.page_content for d in results)
 
 
 @tool
 def web_search_fallback(query: str) -> str:
-    """Search the internet – used when no documents have been uploaded
-    or the documents do not contain relevant information."""
-    tavily = TavilySearchResults(max_results=3)
-    return tavily.invoke(query)
+    """Search the internet – used when no documents are uploaded or they lack relevant info."""
+    return TavilySearchResults(max_results=3).invoke(query)
 
 
 tools = [search_documents, web_search_fallback]
+tool_node = ToolNode(tools)
 
-def call_llm(state: AgentState):
-    """Send messages to LLM – LLM decides whether to use a tool."""
-    llm = ChatLiteLLM(model=state["model"])
-    llm_with_tools = llm.bind_tools(tools)
-    response = llm_with_tools.invoke(state["messages"])
+
+async def call_llm(state: AgentState):
+    llm = ChatLiteLLM(model=state["model"], streaming=True)
+    response = await llm.bind_tools(tools).ainvoke(state["messages"])
     return {"messages": [response]}
 
 
-tool_node = ToolNode(tools)
-
 def build_graph():
     graph = StateGraph(AgentState)
-
     graph.add_node("call_llm", call_llm)
     graph.add_node("tools", tool_node)
-
     graph.add_edge(START, "call_llm")
     graph.add_conditional_edges("call_llm", tools_condition)
     graph.add_edge("tools", "call_llm")
-
     return graph.compile()
+
+
+def extract_text(content) -> str:
+    """Normalize LLM content to plain string (handles str and list[dict])."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
 
 @cl.on_chat_start
 async def on_chat_start():
-    # Each user gets their own ChromaDB instance in RAM
-    vectorstore = Chroma(embedding_function=embeddings)  # no persist_directory!
-    cl.user_session.set("vectorstore", vectorstore)
+    cl.user_session.set("vectorstore", Chroma(embedding_function=embeddings))
+    cl.user_session.set("history", [])
 
-    await cl.ChatSettings(
-        [
-            cl.input_widget.Select(
-                id="model",
-                label="Select model",
-                values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b"],
-                initial_value="gemini/gemini-2.5-flash",
-            )
-        ]
-    ).send()
+    await cl.ChatSettings([
+        cl.input_widget.Select(
+            id="model",
+            label="Select model",
+            values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b"],
+            initial_value="gemini/gemini-2.5-flash",
+        )
+    ]).send()
 
     cl.user_session.set("model", "gemini/gemini-2.5-flash")
-    await cl.Message(content="Hello! You can upload PDF documents and I will answer questions about them. If I find nothing, I will search the web.").send()
+    await cl.Message(
+        content="Hello! Upload PDFs and I'll answer questions about them. If I find nothing, I'll search the web."
+    ).send()
 
 
 @cl.on_settings_update
@@ -117,28 +109,31 @@ async def on_settings_update(settings):
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    model = cl.user_session.get("model", "gemini/gemini-2.5-flash")
-
     if message.elements:
         for element in message.elements:
             if element.mime == "application/pdf":
                 count = await process_document(element.path)
-                await cl.Message(content=f"✅ Document processed! {count} chunks stored.").send()
+                await cl.Message(content=f"✅ Document processed – {count} chunks stored.").send()
             else:
-                await cl.Message(content=f"❌ Only PDF files are supported. You uploaded '{element.name}'.").send()
+                await cl.Message(content=f"❌ Only PDFs are supported: '{element.name}'.").send()
         return
 
-    app = build_graph()
-    answer = cl.Message(content="")
-    await answer.send()
+    model = cl.user_session.get("model", "gemini/gemini-2.5-flash")
+    history = cl.user_session.get("history", [])
+    history.append({"role": "user", "content": message.content})
 
-    async for chunk in app.astream(
-        {
-            "messages": [{"role": "user", "content": message.content}],
-            "model": model
-        },
-        stream_mode="values"
+    answer = cl.Message(content="")
+
+    async for event in build_graph().astream_events(
+            {"messages": history, "model": model},
+            version="v2"
     ):
-        last = chunk["messages"][-1]
-        if hasattr(last, "content") and last.content:
-            await answer.stream_token(last.content)
+        if event["event"] == "on_chat_model_stream":
+            chunk = event["data"]["chunk"]
+            text = extract_text(chunk.content)
+            if text:
+                await answer.stream_token(text)
+
+    await answer.send()
+    history.append({"role": "assistant", "content": answer.content})
+    cl.user_session.set("history", history)

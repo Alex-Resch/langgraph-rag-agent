@@ -8,7 +8,7 @@ from agent.tools import search_documents, web_search_fallback
 
 async def call_llm(state: AgentState):
     system = SystemMessage(
-        content= ( # type: ignore
+        content=(  # type: ignore
             "You are a helpful assistant. "
             "Answer based ONLY on the provided context. "
             "If the context is irrelevant or missing, say so clearly instead of guessing. "
@@ -20,6 +20,7 @@ async def call_llm(state: AgentState):
 
     response = await llm.ainvoke([system] + state["messages"])
     return {"messages": [response]}
+
 
 async def search_pipeline(state: AgentState) -> dict:
     query = state["messages"][-1].content

@@ -1,14 +1,15 @@
 import pytest
 from typing import cast
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
-from chainlit.element import ElementBased
+from chainlit.element import Element
 from langchain_core.documents import Document
 from tavily import UsageLimitExceededError
 
 
-class MockElement:
-    """Minimal stand-in for chainlit's ElementBased."""
+class MockElement(Element):
+    display = "inline"  # required abstract attribute
+
     def __init__(self, mime="application/pdf", name="test.pdf", path="/tmp/test.pdf"):
         self.mime = mime
         self.name = name
@@ -18,54 +19,63 @@ class MockElement:
 def test_get_document_loader_pdf():
     """PDF files should use PyPDFLoader."""
     from agent.tools import get_document_loader
+
     element = MockElement(mime="application/pdf", name="paper.pdf")
     with patch("agent.tools.PyPDFLoader") as MockLoader:
-        get_document_loader(cast(ElementBased, element))
+        get_document_loader(cast(Element, element))
         MockLoader.assert_called_once_with(element.path)
 
 
 def test_get_document_loader_txt():
     """Plain text files should use TextLoader."""
     from agent.tools import get_document_loader
+
     element = MockElement(mime="text/plain", name="notes.txt")
     with patch("agent.tools.TextLoader") as MockLoader:
-        get_document_loader(cast(ElementBased, element))
+        get_document_loader(element)
         MockLoader.assert_called_once_with(element.path)
 
 
 def test_get_document_loader_md():
     """Markdown files (non text/plain MIME) should use UnstructuredMarkdownLoader."""
     from agent.tools import get_document_loader
+
     element = MockElement(mime="text/markdown", name="readme.md")
     with patch("agent.tools.UnstructuredMarkdownLoader") as MockLoader:
-        get_document_loader(cast(ElementBased, element))
+        get_document_loader(element)
         MockLoader.assert_called_once_with(element.path)
 
 
 def test_get_document_loader_unsupported_raises():
     """Unsupported file types should raise a ValueError with the filename."""
     from agent.tools import get_document_loader
+
     element = MockElement(mime="image/png", name="photo.png")
     with pytest.raises(ValueError, match="Unsupported file type"):
-        get_document_loader(cast(ElementBased, element))
+        get_document_loader(element)
 
 
 @pytest.mark.asyncio
 async def test_process_document_returns_chunk_count():
     """process_document should return the number of chunks added to the vectorstore."""
     from agent.tools import process_document
+
     element = MockElement()
 
-    mock_doc = Document(page_content="some text", metadata={"source": "test.pdf", "page": 0})
+    mock_doc = Document(
+        page_content="some text", metadata={"source": "test.pdf", "page": 0}
+    )
     mock_loader = MagicMock()
     mock_loader.load.return_value = [mock_doc, mock_doc, mock_doc]
 
     mock_vectorstore = MagicMock()
 
-    with patch("agent.tools.get_document_loader", return_value=mock_loader), \
-         patch("agent.tools.cl.user_session") as mock_session:
+    with (
+        patch("agent.tools.get_document_loader", return_value=mock_loader),
+        patch("agent.tools.cl.user_session") as mock_session,
+    ):
         mock_session.get.return_value = mock_vectorstore
-        result = await process_document(cast(ElementBased, element))
+        result = await process_document(element)
 
     assert result > 0
     mock_vectorstore.add_documents.assert_called_once()
@@ -75,6 +85,7 @@ async def test_process_document_returns_chunk_count():
 async def test_process_document_adds_chunks_to_vectorstore():
     """Documents larger than CHUNK_SIZE should be split into multiple chunks."""
     from agent.tools import process_document
+
     element = MockElement()
 
     mock_doc = Document(page_content="x" * 600, metadata={})  # > CHUNK_SIZE → splits
@@ -83,10 +94,12 @@ async def test_process_document_adds_chunks_to_vectorstore():
 
     mock_vectorstore = MagicMock()
 
-    with patch("agent.tools.get_document_loader", return_value=mock_loader), \
-         patch("agent.tools.cl.user_session") as mock_session:
+    with (
+        patch("agent.tools.get_document_loader", return_value=mock_loader),
+        patch("agent.tools.cl.user_session") as mock_session,
+    ):
         mock_session.get.return_value = mock_vectorstore
-        await process_document(cast(ElementBased, element))
+        await process_document(element)
 
     added_chunks = mock_vectorstore.add_documents.call_args[0][0]
     assert len(added_chunks) > 1
@@ -98,7 +111,7 @@ def test_search_documents_returns_formatted_results():
 
     mock_doc = Document(
         page_content="Attention is all you need.",
-        metadata={"source": "transformer.pdf", "page": 2}
+        metadata={"source": "transformer.pdf", "page": 2},
     )
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
@@ -155,7 +168,12 @@ def test_search_documents_multiple_results():
     from agent.tools import search_documents
 
     docs = [
-        (Document(page_content=f"content {i}", metadata={"source": "doc.pdf", "page": i}), 0.7)
+        (
+            Document(
+                page_content=f"content {i}", metadata={"source": "doc.pdf", "page": i}
+            ),
+            0.7,
+        )
         for i in range(3)
     ]
     mock_vectorstore = MagicMock()

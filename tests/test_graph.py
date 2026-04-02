@@ -46,19 +46,22 @@ async def test_graph_runs_both_nodes():
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="final answer"))
 
-    with patch("agent.nodes.search_documents") as mock_search, \
-         patch("agent.nodes.web_search_fallback") as mock_web, \
-         patch("agent.nodes.ChatLiteLLM", return_value=mock_llm), \
-         patch("agent.nodes.cl.Step", return_value=mock_step):
-
+    with (
+        patch("agent.nodes.search_documents") as mock_search,
+        patch("agent.nodes.web_search_fallback") as mock_web,
+        patch("agent.nodes.ChatLiteLLM", return_value=mock_llm),
+        patch("agent.nodes.cl.Step", return_value=mock_step),
+    ):
         mock_search.invoke.return_value = "NO_DOCUMENTS_FOUND"
         mock_web.invoke.return_value = "web result"
 
         graph = build_graph()
-        result = await graph.ainvoke({
-            "messages": [HumanMessage(content="hello")],
-            "model": "groq/llama-3.3-70b-versatile"
-        })
+        result = await graph.ainvoke(
+            {
+                "messages": [HumanMessage(content="hello")],
+                "model": "groq/llama-3.3-70b-versatile",
+            }
+        )
 
     mock_search.invoke.assert_called_once()
     mock_llm.ainvoke.assert_called_once()

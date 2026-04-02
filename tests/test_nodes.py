@@ -5,7 +5,9 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from agent.agent_state import AgentState
 
 
-def make_state(content="test query", model="groq/llama-3.3-70b-versatile", prepend=None):
+def make_state(
+    content="test query", model="groq/llama-3.3-70b-versatile", prepend=None
+):
     """Build a minimal AgentState dict for use in node tests.
 
     Args:
@@ -56,7 +58,9 @@ async def test_call_llm_prepends_system_message():
         await call_llm(make_state())
 
     call_args = mock_llm.ainvoke.call_args[0][0]
-    assert isinstance(call_args[0], SystemMessage), "First message must be a SystemMessage"
+    assert isinstance(call_args[0], SystemMessage), (
+        "First message must be a SystemMessage"
+    )
 
 
 @pytest.mark.asyncio
@@ -71,7 +75,9 @@ async def test_call_llm_uses_model_from_state():
     with patch("agent.nodes.ChatLiteLLM", return_value=mock_llm) as MockChatLiteLLM:
         await call_llm(make_state(model="gemini/gemini-2.5-flash"))
 
-    MockChatLiteLLM.assert_called_once_with(model="gemini/gemini-2.5-flash", streaming=True)
+    MockChatLiteLLM.assert_called_once_with(
+        model="gemini/gemini-2.5-flash", streaming=True
+    )
 
 
 @pytest.mark.asyncio
@@ -102,15 +108,20 @@ async def test_call_llm_passes_full_history():
 # search_pipeline
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_search_pipeline_returns_doc_result():
     """search_pipeline should include the document search result in the
     returned messages when search_documents finds relevant content."""
     from agent.nodes import search_pipeline
 
-    with patch("agent.nodes.search_documents") as mock_search, \
-         patch("agent.nodes.cl.Step", return_value=make_mock_step()):
-        mock_search.invoke.return_value = "Found in documents:\n\n[paper.pdf, page 1]\ncontent"
+    with (
+        patch("agent.nodes.search_documents") as mock_search,
+        patch("agent.nodes.cl.Step", return_value=make_mock_step()),
+    ):
+        mock_search.invoke.return_value = (
+            "Found in documents:\n\n[paper.pdf, page 1]\ncontent"
+        )
         result = await search_pipeline(make_state("What is attention?"))
 
     messages = result["messages"]
@@ -123,9 +134,11 @@ async def test_search_pipeline_falls_back_to_web_when_no_docs():
     when search_documents signals that no documents were found."""
     from agent.nodes import search_pipeline
 
-    with patch("agent.nodes.search_documents") as mock_search, \
-         patch("agent.nodes.web_search_fallback") as mock_web, \
-         patch("agent.nodes.cl.Step", return_value=make_mock_step()):
+    with (
+        patch("agent.nodes.search_documents") as mock_search,
+        patch("agent.nodes.web_search_fallback") as mock_web,
+        patch("agent.nodes.cl.Step", return_value=make_mock_step()),
+    ):
         mock_search.invoke.return_value = "NO_DOCUMENTS_FOUND"
         mock_web.invoke.return_value = "Python is a programming language"
         result = await search_pipeline(make_state("What is Python?"))
@@ -141,9 +154,11 @@ async def test_search_pipeline_skips_web_if_docs_found():
     search_documents already returns relevant document content."""
     from agent.nodes import search_pipeline
 
-    with patch("agent.nodes.search_documents") as mock_search, \
-         patch("agent.nodes.web_search_fallback") as mock_web, \
-         patch("agent.nodes.cl.Step", return_value=make_mock_step()):
+    with (
+        patch("agent.nodes.search_documents") as mock_search,
+        patch("agent.nodes.web_search_fallback") as mock_web,
+        patch("agent.nodes.cl.Step", return_value=make_mock_step()),
+    ):
         mock_search.invoke.return_value = "Found in documents:\n\n[doc.pdf]\ncontent"
         await search_pipeline(make_state("query"))
 
@@ -156,8 +171,10 @@ async def test_search_pipeline_uses_last_human_message_as_query():
     its content verbatim as the query to search_documents."""
     from agent.nodes import search_pipeline
 
-    with patch("agent.nodes.search_documents") as mock_search, \
-         patch("agent.nodes.cl.Step", return_value=make_mock_step()):
+    with (
+        patch("agent.nodes.search_documents") as mock_search,
+        patch("agent.nodes.cl.Step", return_value=make_mock_step()),
+    ):
         mock_search.invoke.return_value = "Found in documents:\n\ncontent"
         await search_pipeline(make_state(content="specific query text"))
 

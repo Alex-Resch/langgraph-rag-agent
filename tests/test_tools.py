@@ -220,3 +220,15 @@ def test_web_search_fallback_handles_generic_exception():
 
     assert "Web search failed" in result
     assert "connection timeout" in result
+
+
+def test_get_document_loader_raises_if_path_is_none():
+    """get_document_loader should raise a ValueError that includes the
+    filename when the element has no path set."""
+    from agent.tools import get_document_loader
+
+    element = MockElement(mime="application/pdf", name="paper.pdf")
+    element.path = None
+
+    with pytest.raises(ValueError, match="paper.pdf"):
+        get_document_loader(element)

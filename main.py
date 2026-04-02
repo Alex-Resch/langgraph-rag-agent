@@ -1,5 +1,5 @@
 from typing import TypedDict, Annotated
-from langgraph.graph import StateGraph, START
+from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.tools import tool
@@ -37,16 +37,20 @@ async def process_document(file_path: str) -> int:
 def search_documents(query: str) -> str:
     """Search uploaded documents for relevant information."""
     vectorstore = cl.user_session.get("vectorstore")
-    results = vectorstore.similarity_search(query, k=5)
-    if not results:
+
+    results = vectorstore.similarity_search_with_score(query, k=5)
+    relevant = [doc for doc, score in results if score < 0.7]
+
+    if not relevant:
         return "NO_DOCUMENTS_FOUND"
-    return "Found in documents:\n\n" + "\n\n".join(d.page_content for d in results)
+
+    return "Found in documents:\n\n" + "\n\n".join(d.page_content for d in relevant)
 
 
 @tool
 def web_search_fallback(query: str) -> str:
     """Search the internet – used when no documents are uploaded or they lack relevant info."""
-    return TavilySearchResults(max_results=3).invoke(query)
+    return TavilySearchResults(max_results=10).invoke(query)
 
 
 tools = [search_documents, web_search_fallback]
@@ -54,18 +58,38 @@ tool_node = ToolNode(tools)
 
 
 async def call_llm(state: AgentState):
+    system = {
+        "role": "system",
+        "content": (
+            "You are a helpful assistant. "
+            "Answer based ONLY on the provided context. "
+            "If the context is irrelevant or missing, say so clearly instead of guessing."
+        )
+    }
     llm = ChatLiteLLM(model=state["model"], streaming=True)
-    response = await llm.bind_tools(tools).ainvoke(state["messages"])
+
+    response = await llm.ainvoke([system] + state["messages"])
     return {"messages": [response]}
 
+def search_pipeline(state: AgentState) -> dict:
+    query = state["messages"][-1].content
+
+    doc_result = search_documents.invoke(query)
+    if "NO_DOCUMENTS_FOUND" not in doc_result:
+        return {"messages": [{"role": "system", "content": doc_result}]}
+
+    web_result = web_search_fallback.invoke(query)
+    return {"messages": [{"role": "system", "content": str(web_result)}]}
 
 def build_graph():
     graph = StateGraph(AgentState)
+    graph.add_node("search", search_pipeline)
     graph.add_node("call_llm", call_llm)
-    graph.add_node("tools", tool_node)
-    graph.add_edge(START, "call_llm")
-    graph.add_conditional_edges("call_llm", tools_condition)
-    graph.add_edge("tools", "call_llm")
+
+    graph.add_edge(START, "search")
+    graph.add_edge("search", "call_llm")
+    graph.add_edge("call_llm", END)
+
     return graph.compile()
 
 
@@ -91,7 +115,7 @@ async def on_chat_start():
         cl.input_widget.Select(
             id="model",
             label="Select model",
-            values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b"],
+            values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b-versatile"],
             initial_value="gemini/gemini-2.5-flash",
         )
     ]).send()
@@ -112,11 +136,16 @@ async def on_message(message: cl.Message):
     if message.elements:
         for element in message.elements:
             if element.mime == "application/pdf":
-                count = await process_document(element.path)
-                await cl.Message(content=f"✅ Document processed – {count} chunks stored.").send()
+                await process_document(element.path)
+
+                history = cl.user_session.get("history", [])
+                history.append({
+                    "role": "system",
+                    "content": f"The user just uploaded a PDF: '{element.name}'. It has been stored. Use search_documents for any questions about it."
+                })
+                cl.user_session.set("history", history)
             else:
                 await cl.Message(content=f"❌ Only PDFs are supported: '{element.name}'.").send()
-        return
 
     model = cl.user_session.get("model", "gemini/gemini-2.5-flash")
     history = cl.user_session.get("history", [])

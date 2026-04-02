@@ -70,7 +70,7 @@ async def on_message(message: cl.Message):
                 chunk = event["data"]["chunk"]
                 await answer.stream_token(chunk.content)
     except RateLimitError:
-        error_msg = "⚠️ Rate limit exceeded. Try again later or switch the model."
+        error_msg = f"⚠️ Rate limit exceeded for {model}. Try again later or switch the model."
     except BadRequestError:
         error_msg = "❌ Invalid request – maybe the model doesn't support this input."
     except ServiceUnavailableError:

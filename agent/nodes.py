@@ -11,6 +11,7 @@ async def call_llm(state: AgentState):
             "You are a helpful assistant. "
             "Answer based ONLY on the provided context. "
             "If the context is irrelevant or missing, say so clearly instead of guessing. "
+            "If the user is just talking to you, answer normal back. "
         )
     }
     llm = ChatLiteLLM(model=state["model"], streaming=True)

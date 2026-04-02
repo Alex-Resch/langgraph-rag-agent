@@ -42,16 +42,17 @@ async def on_settings_update(settings):
 async def on_message(message: cl.Message):
     if message.elements:
         for element in message.elements:
-            if element.mime == "application/pdf" or element.mime == "text/plain" or element.name.endswith(".md"):
-                await process_document(element.path, element)
+            try:
+                await process_document(element)
 
                 history = cl.user_session.get("history", [])
                 history.append(SystemMessage(
                     content=f"The user just uploaded a File: '{element.name}'. " # type: ignore
                             f"It has been stored. Use search_documents for any questions about it."))
                 cl.user_session.set("history", history)
-            else:
-                await cl.Message(content=f"❌ Only PDFs are supported: '{element.name}'.").send()
+            except ValueError as e:
+                await cl.Message(content=f"❌ {e}").send()
+                return
 
     model = cl.user_session.get("model", DEFAULT_MODEL)
     history = cl.user_session.get("history", [])

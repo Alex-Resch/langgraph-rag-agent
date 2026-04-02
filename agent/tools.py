@@ -6,15 +6,17 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chainlit as cl
 from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
-
-async def process_document(file_path: str, element: ElementBased) -> int:
+def get_document_loader(element: ElementBased):
     if element.mime == "application/pdf":
-        loader = PyPDFLoader(file_path)
+        return PyPDFLoader(element.path)
     elif element.mime == "text/plain":
-        loader = TextLoader(file_path)
-    else:
-        # needs to be .md
-        loader = UnstructuredMarkdownLoader(file_path)
+        return TextLoader(element.path)
+    elif element.name.endswith(".md"):
+        return UnstructuredMarkdownLoader(element.path)
+    raise ValueError(f"Unsupported file type: '{element.name}'")
+
+async def process_document(element: ElementBased) -> int:
+    loader = get_document_loader(element)
     pages = loader.load()
     chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP

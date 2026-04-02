@@ -16,6 +16,7 @@ embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
 
 @cl.on_chat_start
 async def on_chat_start():
+    cl.user_session.set("graph", build_graph())
     cl.user_session.set("vectorstore", Chroma(embedding_function=embeddings))
     cl.user_session.set("history", [])
 
@@ -62,7 +63,8 @@ async def on_message(message: cl.Message):
     answer = cl.Message(content="")
     error_msg = None
     try:
-        async for event in build_graph().astream_events(
+        graph = cl.user_session.get("graph")
+        async for event in graph.astream_events(
                 {"messages": history, "model": model},
                 version="v2"
         ):

@@ -3,6 +3,7 @@ from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from litellm import RateLimitError, BadRequestError, ServiceUnavailableError
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -59,14 +60,27 @@ async def on_message(message: cl.Message):
     history.append(HumanMessage(content=message.content)) # type: ignore
 
     answer = cl.Message(content="")
+    error_msg = None
+    try:
+        async for event in build_graph().astream_events(
+                {"messages": history, "model": model},
+                version="v2"
+        ):
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                await answer.stream_token(chunk.content)
+    except RateLimitError:
+        error_msg = "⚠️ Rate limit exceeded. Try again later or switch the model."
+    except BadRequestError:
+        error_msg = "❌ Invalid request – maybe the model doesn't support this input."
+    except ServiceUnavailableError:
+        error_msg = "❌ Model API is currently unavailable. Try again later or switch the model."
+    except Exception as e:
+        error_msg =f"❌ Unexpected Error: {e}"
 
-    async for event in build_graph().astream_events(
-            {"messages": history, "model": model},
-            version="v2"
-    ):
-        if event["event"] == "on_chat_model_stream":
-            chunk = event["data"]["chunk"]
-            await answer.stream_token(chunk.content)
+    if error_msg:
+        await cl.Message(error_msg).send()
+        return
 
     await answer.send()
     history.append(AIMessage(answer.content)) # type: ignore

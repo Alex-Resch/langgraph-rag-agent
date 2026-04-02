@@ -4,6 +4,8 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chainlit as cl
+from tavily import UsageLimitExceededError
+
 from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
 def get_document_loader(element: ElementBased):
@@ -42,4 +44,9 @@ def search_documents(query: str) -> str:
 @tool
 def web_search_fallback(query: str) -> str:
     """Search the internet – used when no documents are uploaded or they lack relevant info."""
-    return TavilySearchResults(max_results=TAVILY_MAX_RESULTS).invoke(query)
+    try:
+        return TavilySearchResults(max_results=TAVILY_MAX_RESULTS).invoke(query)
+    except UsageLimitExceededError:
+        return "Web search failed: usage limit exceeded."
+    except Exception as e:
+        return f"Web search failed: {e}"

@@ -86,8 +86,8 @@ Streamed answer with [source, page N]
 ```bash
 git clone https://github.com/Alex-Resch/langgraph-rag-agent.git
 cd langgraph-rag-agent
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
+source .venv/bin/activate
 ```
 
 ### 2. Configure environment
@@ -113,7 +113,7 @@ without providing payment information:
 ### 3. Run
 
 ```bash
-chainlit run app.py
+chainlit run main.py -w
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser.
@@ -129,10 +129,15 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ---
 
-## Running Tests
+## Development & Testing
+
+This project uses `uv` for dependency management and a `Makefile` for common tasks:
 
 ```bash
-pytest
+make test       # Run pytest
+make lint       # Run ruff formatting and linting
+make typecheck  # Run pyright typechecking
+make all        # Run lint, typecheck, and test
 ```
 
 The test suite covers:

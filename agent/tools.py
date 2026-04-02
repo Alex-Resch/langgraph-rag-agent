@@ -38,7 +38,14 @@ def search_documents(query: str) -> str:
     if not relevant:
         return "NO_DOCUMENTS_FOUND"
 
-    return "Found in documents:\n\n" + "\n\n".join(d.page_content for d in relevant)
+    output = []
+    for doc in relevant:
+        source = doc.metadata.get("source", "Unknown")
+        page = doc.metadata.get("page", None)
+        ref = f"[{source}" + (f", page {page + 1}]" if page is not None else "]")
+        output.append(f"{ref}\n{doc.page_content}")
+
+    return "Found in documents:\n\n" + "\n\n".join(output)
 
 
 @tool

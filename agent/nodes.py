@@ -13,6 +13,7 @@ async def call_llm(state: AgentState):
             "Answer based ONLY on the provided context. "
             "If the context is irrelevant or missing, say so clearly instead of guessing. "
             "If the user is just talking to you, answer normal back. "
+            "Always mention the source file and page number when answering from documents. "
         )
     )
     llm = ChatLiteLLM(model=state["model"], streaming=True)

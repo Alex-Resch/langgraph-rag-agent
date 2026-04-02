@@ -4,7 +4,6 @@ import chainlit as cl
 from dotenv import load_dotenv
 
 from agent.graph import build_graph
-from agent.nodes import extract_text
 from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 
@@ -66,9 +65,7 @@ async def on_message(message: cl.Message):
     ):
         if event["event"] == "on_chat_model_stream":
             chunk = event["data"]["chunk"]
-            text = extract_text(chunk.content)
-            if text:
-                await answer.stream_token(text)
+            await answer.stream_token(chunk.content)
 
     await answer.send()
     history.append({"role": "assistant", "content": answer.content})

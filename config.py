@@ -1,6 +1,6 @@
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
-DEFAULT_MODEL = "gemini/gemini-2.5-flash"
+DEFAULT_MODEL = "groq/llama-3.3-70b-versatile"
 AVAILABLE_MODELS = ["gemini/gemini-2.5-flash", "groq/llama-3.3-70b-versatile"]
 SIMILARITY_THRESHOLD = 0.7
 TAVILY_MAX_RESULTS = 10

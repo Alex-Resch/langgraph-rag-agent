@@ -28,17 +28,3 @@ def search_pipeline(state: AgentState) -> dict:
 
     web_result = web_search_fallback.invoke(query)
     return {"messages": [{"role": "system", "content": str(web_result)}]}
-
-
-
-def extract_text(content) -> str:
-    """Normalize LLM content to plain string (handles str and list[dict])."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            block.get("text", "")
-            for block in content
-            if isinstance(block, dict) and block.get("type") == "text"
-        )
-    return ""

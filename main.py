@@ -1,109 +1,16 @@
-from typing import TypedDict, Annotated
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.tools import tool
-from langchain_community.chat_models import ChatLiteLLM
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
 
+from agent.graph import build_graph
+from agent.nodes import extract_text
+from agent.tools import process_document
+from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
+
 load_dotenv()
 
-
-class AgentState(TypedDict):
-    messages: Annotated[list, add_messages]
-    model: str
-
-
-embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
-
-
-async def process_document(file_path: str) -> int:
-    loader = PyPDFLoader(file_path)
-    pages = loader.load()
-    chunks = RecursiveCharacterTextSplitter(
-        chunk_size=500, chunk_overlap=50
-    ).split_documents(pages)
-    cl.user_session.get("vectorstore").add_documents(chunks)
-    return len(chunks)
-
-
-@tool
-def search_documents(query: str) -> str:
-    """Search uploaded documents for relevant information."""
-    vectorstore = cl.user_session.get("vectorstore")
-
-    results = vectorstore.similarity_search_with_score(query, k=5)
-    relevant = [doc for doc, score in results if score < 0.7]
-
-    if not relevant:
-        return "NO_DOCUMENTS_FOUND"
-
-    return "Found in documents:\n\n" + "\n\n".join(d.page_content for d in relevant)
-
-
-@tool
-def web_search_fallback(query: str) -> str:
-    """Search the internet – used when no documents are uploaded or they lack relevant info."""
-    return TavilySearchResults(max_results=10).invoke(query)
-
-
-tools = [search_documents, web_search_fallback]
-tool_node = ToolNode(tools)
-
-
-async def call_llm(state: AgentState):
-    system = {
-        "role": "system",
-        "content": (
-            "You are a helpful assistant. "
-            "Answer based ONLY on the provided context. "
-            "If the context is irrelevant or missing, say so clearly instead of guessing."
-        )
-    }
-    llm = ChatLiteLLM(model=state["model"], streaming=True)
-
-    response = await llm.ainvoke([system] + state["messages"])
-    return {"messages": [response]}
-
-def search_pipeline(state: AgentState) -> dict:
-    query = state["messages"][-1].content
-
-    doc_result = search_documents.invoke(query)
-    if "NO_DOCUMENTS_FOUND" not in doc_result:
-        return {"messages": [{"role": "system", "content": doc_result}]}
-
-    web_result = web_search_fallback.invoke(query)
-    return {"messages": [{"role": "system", "content": str(web_result)}]}
-
-def build_graph():
-    graph = StateGraph(AgentState)
-    graph.add_node("search", search_pipeline)
-    graph.add_node("call_llm", call_llm)
-
-    graph.add_edge(START, "search")
-    graph.add_edge("search", "call_llm")
-    graph.add_edge("call_llm", END)
-
-    return graph.compile()
-
-
-def extract_text(content) -> str:
-    """Normalize LLM content to plain string (handles str and list[dict])."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            block.get("text", "")
-            for block in content
-            if isinstance(block, dict) and block.get("type") == "text"
-        )
-    return ""
+embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
 
 
 @cl.on_chat_start
@@ -115,12 +22,12 @@ async def on_chat_start():
         cl.input_widget.Select(
             id="model",
             label="Select model",
-            values=["gemini/gemini-2.5-flash", "groq/llama-3.3-70b-versatile"],
-            initial_value="gemini/gemini-2.5-flash",
+            values=AVAILABLE_MODELS,
+            initial_value=DEFAULT_MODEL,
         )
     ]).send()
 
-    cl.user_session.set("model", "gemini/gemini-2.5-flash")
+    cl.user_session.set("model", DEFAULT_MODEL)
     await cl.Message(
         content="Hello! Upload PDFs and I'll answer questions about them. If I find nothing, I'll search the web."
     ).send()
@@ -147,7 +54,7 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=f"❌ Only PDFs are supported: '{element.name}'.").send()
 
-    model = cl.user_session.get("model", "gemini/gemini-2.5-flash")
+    model = cl.user_session.get("model", DEFAULT_MODEL)
     history = cl.user_session.get("history", [])
     history.append({"role": "user", "content": message.content})
 

@@ -1,9 +1,9 @@
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from litellm.exceptions import RateLimitError, BadRequestError, ServiceUnavailableError
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -11,7 +11,7 @@ from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 
 load_dotenv()
 
-embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
+embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 
 @cl.on_chat_start

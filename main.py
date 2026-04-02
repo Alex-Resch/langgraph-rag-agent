@@ -42,7 +42,7 @@ async def on_settings_update(settings):
 async def on_message(message: cl.Message):
     if message.elements:
         for element in message.elements:
-            if element.mime == "application/pdf" or element.name.endswith(".md"):
+            if element.mime == "application/pdf" or element.mime == "text/plain" or element.name.endswith(".md"):
                 await process_document(element.path, element)
 
                 history = cl.user_session.get("history", [])

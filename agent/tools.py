@@ -1,7 +1,7 @@
 from chainlit.element import ElementBased
 from langchain_core.tools import tool
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chainlit as cl
 from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
@@ -10,6 +10,8 @@ from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_R
 async def process_document(file_path: str, element: ElementBased) -> int:
     if element.mime == "application/pdf":
         loader = PyPDFLoader(file_path)
+    elif element.mime == "text/plain":
+        loader = TextLoader(file_path)
     else:
         # needs to be .md
         loader = UnstructuredMarkdownLoader(file_path)

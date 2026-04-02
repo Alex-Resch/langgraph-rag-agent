@@ -1,9 +1,8 @@
-from instructor.providers.anthropic.utils import SystemMessage
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from agent.graph import build_graph
 from agent.tools import process_document

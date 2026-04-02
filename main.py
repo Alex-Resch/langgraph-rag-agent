@@ -1,7 +1,9 @@
+from instructor.providers.anthropic.utils import SystemMessage
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 import chainlit as cl
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, AIMessage
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -45,17 +47,16 @@ async def on_message(message: cl.Message):
                 await process_document(element.path)
 
                 history = cl.user_session.get("history", [])
-                history.append({
-                    "role": "system",
-                    "content": f"The user just uploaded a PDF: '{element.name}'. It has been stored. Use search_documents for any questions about it."
-                })
+                history.append(SystemMessage(
+                    content=f"The user just uploaded a PDF: '{element.name}'. " # type: ignore
+                            f"It has been stored. Use search_documents for any questions about it."))
                 cl.user_session.set("history", history)
             else:
                 await cl.Message(content=f"❌ Only PDFs are supported: '{element.name}'.").send()
 
     model = cl.user_session.get("model", DEFAULT_MODEL)
     history = cl.user_session.get("history", [])
-    history.append({"role": "user", "content": message.content})
+    history.append(HumanMessage(content=message.content)) # type: ignore
 
     answer = cl.Message(content="")
 
@@ -68,5 +69,5 @@ async def on_message(message: cl.Message):
             await answer.stream_token(chunk.content)
 
     await answer.send()
-    history.append({"role": "assistant", "content": answer.content})
+    history.append(AIMessage(answer.content)) # type: ignore
     cl.user_session.set("history", history)

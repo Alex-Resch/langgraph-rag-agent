@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from litellm.exceptions import RateLimitError, BadRequestError, ServiceUnavailableError
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.chat_models import ChatLiteLLM
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -47,17 +48,37 @@ async def on_message(message: cl.Message):
     if message.elements:
         for element in message.elements:
             try:
-                await process_document(element)
+                intro_text = await process_document(element)
 
-                history = cl.user_session.get("history", [])
-                if history:
-                    history.append(
-                        SystemMessage(
-                            content=f"The user just uploaded a File: '{element.name}'. "  # type: ignore
-                            f"It has been stored. Use search_documents for any questions about it."
+                model = cl.user_session.get("model", DEFAULT_MODEL)
+                async with cl.Step(name="create summary..."):
+                    if not model:
+                        return
+
+                    llm = ChatLiteLLM(model=model, temperature=0)
+                    summary_prompt = SystemMessage(
+                        content=(
+                            "You are an assistant. Create a short, meaningful summary "
+                            "(max. 3-4 sentences) of the following document based on "
+                            "the introduction/first pages. State the main topic "
+                            "and (if apparent) the main contributions:\n\n"
+                            f"{intro_text}"
                         )
                     )
-                    cl.user_session.set("history", history)
+                    summary = await llm.ainvoke([summary_prompt])
+
+                history = cl.user_session.get("history", [])
+
+                history.append(  # type: ignore
+                    SystemMessage(
+                        content=(
+                            f"The user just uploaded a File: '{element.name}'.\n"
+                            f"Here is a summary of the document for general context:\n{summary}\n"
+                            f"It has been stored. Use search_documents for specific detailed queries."
+                        )
+                    )
+                )
+                cl.user_session.set("history", history)
             except ValueError as e:
                 await cl.Message(content=f"❌ {e}").send()
                 return

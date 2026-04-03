@@ -28,15 +28,16 @@ def get_document_loader(element: Element):
     raise ValueError(f"Unsupported file type: '{element.name}'")
 
 
-async def process_document(element: Element) -> int:
+async def process_document(element: Element) -> str:
     loader = get_document_loader(element)
     pages = loader.load()
+    intro_text = "\n".join([page.page_content for page in pages[:2]])
     chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
     ).split_documents(pages)
     vectorstore = cast(Chroma, cl.user_session.get("vectorstore"))
     vectorstore.add_documents(chunks)
-    return len(chunks)
+    return intro_text
 
 
 @tool

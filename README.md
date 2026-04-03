@@ -29,6 +29,14 @@ A production-oriented RAG chatbot built with **LangGraph**, **LiteLLM**, and **C
 - **Tested** — unit and integration tests covering nodes, tools, and graph compilation
 
 ---
+ 
+## Live Demo
+
+🚀 **[Try it on Hugging Face Spaces](https://huggingface.co/spaces/Alex-Resch/langgraph-rag-agent)** — no setup required, runs in your browser.
+ 
+---
+
+---
 
 ## Try it out
 
@@ -164,8 +172,8 @@ All async tests run automatically via `asyncio_mode = auto`.
 Key constants in `config.py`:
 
 | Constant | Default | Description |
-|---|---|---|
-| `CHUNK_SIZE` | 500 | Max characters per document chunk |
-| `CHUNK_OVERLAP` | 50 | Overlap between consecutive chunks |
-| `SIMILARITY_THRESHOLD` | 0.5 | Minimum cosine similarity score for a chunk to be considered relevant |
-| `TAVILY_MAX_RESULTS` | 3 | Number of web results to retrieve |
+|---|---------|---|
+| `CHUNK_SIZE` | 500     | Max characters per document chunk |
+| `CHUNK_OVERLAP` | 50      | Overlap between consecutive chunks |
+| `SIMILARITY_THRESHOLD` | 0.5     | Minimum cosine similarity score for a chunk to be considered relevant |
+| `TAVILY_MAX_RESULTS` | 10      | Number of web results to retrieve |

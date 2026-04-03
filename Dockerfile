@@ -6,11 +6,14 @@ ENV PATH="/home/user/.local/bin:$PATH"
 
 WORKDIR /app
 
-COPY --chown=user ./requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=user ./pyproject.toml pyproject.toml
+COPY --chown=user ./uv.lock uv.lock
+
+RUN pip install uv
+RUN uv sync --frozen
 
 COPY --chown=user . /app
 
 EXPOSE 7860
 
-CMD ["chainlit", "run", "main.py", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uv", "run", "chainlit", "run", "main.py", "--host", "0.0.0.0", "--port", "7860"]

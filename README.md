@@ -1,3 +1,12 @@
+---
+title: LangGraph RAG Agent
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # langgraph-rag-agent
 
 A production-oriented RAG chatbot built with **LangGraph**, **LiteLLM**, and **Chainlit**. Upload documents and ask questions — the agent retrieves relevant context from your files and answers with source attribution, or falls back to live web search when no relevant documents are found.

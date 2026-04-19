@@ -256,13 +256,17 @@ async def test_on_message_calls_process_document_for_each_element():
     mock_answer = make_mock_answer()
     elements = [make_mock_element("a.pdf"), make_mock_element("b.pdf")]
 
+    mock_step = MagicMock()
+    mock_step.__aenter__ = AsyncMock(return_value=None)
+    mock_step.__aexit__ = AsyncMock(return_value=None)
+
+    mock_proc = AsyncMock(return_value="intro text")
+
     with (
-        patch(
-            "main.process_document",
-            new_callable=lambda: lambda: AsyncMock(return_value=3),
-        ) as mock_proc,
+        patch("main.process_document", mock_proc),
         patch("main.cl.user_session") as mock_session,
         patch("main.cl.Message", return_value=mock_answer),
+        patch("main.cl.Step", return_value=mock_step),
     ):
         mock_proc = AsyncMock(return_value=3)
         mock_session.get.side_effect = lambda key, default=None: {
@@ -472,10 +476,17 @@ async def test_on_message_appends_system_message_to_history_after_upload():
     mock_answer = make_mock_answer()
     existing_history = [HumanMessage(content="previous message")]
 
+    mock_step = MagicMock()
+    mock_step.__aenter__ = AsyncMock(return_value=None)
+    mock_step.__aexit__ = AsyncMock(return_value=None)
+
+    mock_proc = AsyncMock(return_value="intro text")
+
     with (
-        patch("main.process_document", new=AsyncMock(return_value=3)),
+        patch("main.process_document", mock_proc),
         patch("main.cl.user_session") as mock_session,
         patch("main.cl.Message", return_value=mock_answer),
+        patch("main.cl.Step", return_value=mock_step),
     ):
         mock_session.get.side_effect = lambda key, default=None: {
             "model": "groq/llama-3.3-70b-versatile",

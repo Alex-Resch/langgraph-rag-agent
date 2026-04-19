@@ -77,7 +77,7 @@ async def test_process_document_returns_chunk_count():
         mock_session.get.return_value = mock_vectorstore
         result = await process_document(element)
 
-    assert result > 0
+    assert isinstance(result, str) and len(result) > 0
     mock_vectorstore.add_documents.assert_called_once()
 
 
@@ -115,7 +115,7 @@ def test_search_documents_returns_formatted_results():
     )
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.8)  # score >= 0.5 → relevant
+        (mock_doc, 0.2)  # score < 0.5 → relevant
     ]
 
     with patch("agent.tools.cl.user_session") as mock_session:
@@ -135,7 +135,7 @@ def test_search_documents_returns_no_documents_found():
     mock_doc = Document(page_content="irrelevant content", metadata={})
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.2)  # score < 0.5 → not relevant
+        (mock_doc, 0.8)  # score >= 0.5 → not relevant
     ]
 
     with patch("agent.tools.cl.user_session") as mock_session:
@@ -152,7 +152,7 @@ def test_search_documents_omits_page_if_not_in_metadata():
     mock_doc = Document(page_content="content", metadata={"source": "notes.txt"})
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.9)
+        (mock_doc, 0.1)  # < 0.5 → relevant
     ]
 
     with patch("agent.tools.cl.user_session") as mock_session:
@@ -172,7 +172,7 @@ def test_search_documents_multiple_results():
             Document(
                 page_content=f"content {i}", metadata={"source": "doc.pdf", "page": i}
             ),
-            0.7,
+            0.1,
         )
         for i in range(3)
     ]

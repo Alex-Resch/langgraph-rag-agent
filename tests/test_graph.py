@@ -10,10 +10,10 @@ def test_build_graph_compiles_without_error():
 
 
 def test_graph_has_search_node():
-    """The compiled graph must expose a node named 'search', which
+    """The compiled graph must expose a node named 'tools', which
     corresponds to the search_pipeline node."""
     graph = build_graph()
-    assert "search" in graph.nodes
+    assert "tools" in graph.nodes
 
 
 def test_graph_has_call_llm_node():
@@ -46,14 +46,14 @@ async def test_graph_runs_both_nodes():
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="final answer"))
 
-    with (
-        patch("agent.nodes.search_documents") as mock_search,
-        patch("agent.nodes.web_search_fallback") as mock_web,
-        patch("agent.nodes.ChatLiteLLM", return_value=mock_llm),
-        patch("agent.nodes.cl.Step", return_value=mock_step),
-    ):
-        mock_search.invoke.return_value = "NO_DOCUMENTS_FOUND"
-        mock_web.invoke.return_value = "web result"
+    with patch("agent.nodes.ChatLiteLLM") as MockLLM:
+        mock_llm_instance = MagicMock()
+        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools.ainvoke = AsyncMock(
+            return_value=AIMessage(content="final answer")
+        )
+        mock_llm_instance.bind_tools.return_value = mock_llm_with_tools
+        MockLLM.return_value = mock_llm_instance
 
         graph = build_graph()
         result = await graph.ainvoke(
@@ -63,8 +63,6 @@ async def test_graph_runs_both_nodes():
             }
         )
 
-    mock_search.invoke.assert_called_once()
-    mock_llm.ainvoke.assert_called_once()
     assert any(
         isinstance(m, AIMessage) and m.content == "final answer"
         for m in result["messages"]

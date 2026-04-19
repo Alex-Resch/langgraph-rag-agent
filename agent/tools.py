@@ -44,9 +44,8 @@ async def process_document(element: Element) -> str:
 def search_documents(query: str) -> str:
     """Search uploaded documents for relevant information."""
     vectorstore = cast(Chroma, cl.user_session.get("vectorstore"))
-
     results = vectorstore.similarity_search_with_relevance_scores(query, k=5)
-    relevant = [doc for doc, score in results if score >= SIMILARITY_THRESHOLD]
+    relevant = [doc for doc, score in results if score < SIMILARITY_THRESHOLD]
 
     if not relevant:
         return "NO_DOCUMENTS_FOUND"
@@ -65,7 +64,8 @@ def search_documents(query: str) -> str:
 def web_search_fallback(query: str) -> str:
     """Search the internet – used when no documents are uploaded or they lack relevant info."""
     try:
-        return TavilySearchResults(max_results=TAVILY_MAX_RESULTS).invoke(query)
+        search = TavilySearchResults(max_results=TAVILY_MAX_RESULTS).invoke(query)
+        return search
     except UsageLimitExceededError:
         return "Web search failed: usage limit exceeded."
     except Exception as e:

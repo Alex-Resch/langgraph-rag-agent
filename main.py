@@ -2,9 +2,14 @@ from langchain_community.vectorstores import Chroma
 import chainlit as cl
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from litellm.exceptions import RateLimitError, BadRequestError, ServiceUnavailableError
+from litellm.exceptions import (
+    RateLimitError,
+    BadRequestError,
+    ServiceUnavailableError,
+    MidStreamFallbackError,
+)
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.chat_models import ChatLiteLLM
+from langchain_litellm import ChatLiteLLM
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -18,7 +23,12 @@ embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 @cl.on_chat_start
 async def on_chat_start():
     cl.user_session.set("graph", build_graph())
-    cl.user_session.set("vectorstore", Chroma(embedding_function=embeddings))
+    cl.user_session.set(
+        "vectorstore",
+        Chroma(
+            embedding_function=embeddings, collection_metadata={"hnsw:space": "cosine"}
+        ),
+    )
     cl.user_session.set("history", [])
 
     await cl.ChatSettings(
@@ -74,7 +84,7 @@ async def on_message(message: cl.Message):
                         content=(
                             f"The user just uploaded a File: '{element.name}'.\n"
                             f"Here is a summary of the document for general context:\n{summary}\n"
-                            f"It has been stored. Use search_documents for specific detailed queries."
+                            f"Only use search_documents if the user asks something about this document."
                         )
                     )
                 )
@@ -98,13 +108,21 @@ async def on_message(message: cl.Message):
                 if event["event"] == "on_chat_model_stream":
                     chunk = event["data"]["chunk"]
                     await answer.stream_token(chunk.content)
-    except RateLimitError:
+    except RateLimitError as e:
+        print("ratelimit_e: ", e)
         error_msg = (
             f"⚠️ Rate limit exceeded for {model}. Try again later or switch the model."
         )
+    except MidStreamFallbackError as e:
+        if isinstance(e.original_exception, RateLimitError):
+            print("error_E: ", e)
+            error_msg = f"⚠️ Rate limit exceeded for {model}. Try again later or switch the model."
+        else:
+            error_msg = f"❌ Stream error: {e}"
     except BadRequestError:
         error_msg = "❌ Invalid request – maybe the model doesn't support this input."
-    except ServiceUnavailableError:
+    except ServiceUnavailableError as e:
+        print("service_unavailable: ", e)
         error_msg = "❌ Model API is currently unavailable. Try again later or switch the model."
     except Exception as e:
         error_msg = f"❌ Unexpected Error: {e}"

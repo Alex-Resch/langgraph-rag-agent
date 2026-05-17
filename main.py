@@ -36,16 +36,13 @@ async def on_chat_start():
             cl.input_widget.Select(
                 id="model",
                 label="Select model",
-                values=AVAILABLE_MODELS,
+                items=AVAILABLE_MODELS,
                 initial_value=DEFAULT_MODEL,
             )
         ]
     ).send()
 
     cl.user_session.set("model", DEFAULT_MODEL)
-    await cl.Message(
-        content="Hello! Upload PDFs and I'll answer questions about them. If I find nothing, I'll search the web."
-    ).send()
 
 
 @cl.on_settings_update
@@ -83,7 +80,7 @@ async def on_message(message: cl.Message):
                     SystemMessage(
                         content=(
                             f"The user just uploaded a File: '{element.name}'.\n"
-                            f"Here is a summary of the document for general context:\n{summary}\n"
+                            f"Here is a summary of the document for general context:\n{summary.content}\n"
                             f"Only use search_documents if the user asks something about this document."
                         )
                     )

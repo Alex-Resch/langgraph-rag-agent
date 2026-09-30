@@ -10,6 +10,8 @@ from litellm.exceptions import (
 )
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_litellm import ChatLiteLLM
+from langfuse import propagate_attributes
+from langfuse.langchain import CallbackHandler
 
 from agent.graph import build_graph
 from agent.tools import process_document
@@ -18,6 +20,7 @@ from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 load_dotenv()
 
 embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+langfuse_handler = CallbackHandler()
 
 
 @cl.on_chat_start
@@ -99,12 +102,17 @@ async def on_message(message: cl.Message):
     try:
         graph = cl.user_session.get("graph")
         if graph:
-            async for event in graph.astream_events(
-                {"messages": history, "model": model}, version="v2"
+            with propagate_attributes(
+                session_id=cl.context.session.id, trace_name="chat-message"
             ):
-                if event["event"] == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"]
-                    await answer.stream_token(chunk.content)
+                async for event in graph.astream_events(
+                    {"messages": history, "model": model},
+                    config={"callbacks": [langfuse_handler]},
+                    version="v2",
+                ):
+                    if event["event"] == "on_chat_model_stream":
+                        chunk = event["data"]["chunk"]
+                        await answer.stream_token(chunk.content)
     except RateLimitError as e:
         print("ratelimit_e: ", e)
         error_msg = (

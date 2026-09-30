@@ -1,9 +1,20 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
+from chainlit.context import context_var
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from litellm.exceptions import RateLimitError, BadRequestError, ServiceUnavailableError
 
 from main import on_message
+
+
+@pytest.fixture(autouse=True)
+def mock_chainlit_context():
+    """Provide a fake Chainlit context so on_message can read the session id."""
+    mock_context = MagicMock()
+    mock_context.session.id = "test-session"
+    token = context_var.set(mock_context)
+    yield mock_context
+    context_var.reset(token)
 
 
 def make_mock_message(content="test message", elements=None):

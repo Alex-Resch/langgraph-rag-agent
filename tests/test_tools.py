@@ -6,6 +6,15 @@ from chainlit.element import Element
 from langchain_core.documents import Document
 from tavily import UsageLimitExceededError
 
+from agent.agent_state import AgentContext
+
+
+def make_runtime(vectorstore):
+    """Build a minimal ToolRuntime stand-in that exposes the given vectorstore."""
+    runtime = MagicMock()
+    runtime.context = AgentContext(vectorstore=vectorstore)
+    return runtime
+
 
 class MockElement(Element):
     display = "inline"  # required abstract attribute
@@ -70,12 +79,8 @@ async def test_process_document_returns_chunk_count():
 
     mock_vectorstore = MagicMock()
 
-    with (
-        patch("agent.tools.get_document_loader", return_value=mock_loader),
-        patch("agent.tools.cl.user_session") as mock_session,
-    ):
-        mock_session.get.return_value = mock_vectorstore
-        result = await process_document(element)
+    with patch("agent.tools.get_document_loader", return_value=mock_loader):
+        result = await process_document(element, mock_vectorstore)
 
     assert isinstance(result, str) and len(result) > 0
     mock_vectorstore.add_documents.assert_called_once()
@@ -94,12 +99,8 @@ async def test_process_document_adds_chunks_to_vectorstore():
 
     mock_vectorstore = MagicMock()
 
-    with (
-        patch("agent.tools.get_document_loader", return_value=mock_loader),
-        patch("agent.tools.cl.user_session") as mock_session,
-    ):
-        mock_session.get.return_value = mock_vectorstore
-        await process_document(element)
+    with patch("agent.tools.get_document_loader", return_value=mock_loader):
+        await process_document(element, mock_vectorstore)
 
     added_chunks = mock_vectorstore.add_documents.call_args[0][0]
     assert len(added_chunks) > 1
@@ -118,9 +119,9 @@ def test_search_documents_returns_formatted_results():
         (mock_doc, 0.2)  # score < 0.5 → relevant
     ]
 
-    with patch("agent.tools.cl.user_session") as mock_session:
-        mock_session.get.return_value = mock_vectorstore
-        result = search_documents.invoke("What is attention?")
+    result = search_documents.func(
+        "What is attention?", runtime=make_runtime(mock_vectorstore)
+    )
 
     assert "Found in documents" in result
     assert "transformer.pdf" in result
@@ -138,9 +139,9 @@ def test_search_documents_returns_no_documents_found():
         (mock_doc, 0.8)  # score >= 0.5 → not relevant
     ]
 
-    with patch("agent.tools.cl.user_session") as mock_session:
-        mock_session.get.return_value = mock_vectorstore
-        result = search_documents.invoke("quantum physics")
+    result = search_documents.func(
+        "quantum physics", runtime=make_runtime(mock_vectorstore)
+    )
 
     assert result == "NO_DOCUMENTS_FOUND"
 
@@ -155,9 +156,7 @@ def test_search_documents_omits_page_if_not_in_metadata():
         (mock_doc, 0.1)  # < 0.5 → relevant
     ]
 
-    with patch("agent.tools.cl.user_session") as mock_session:
-        mock_session.get.return_value = mock_vectorstore
-        result = search_documents.invoke("something")
+    result = search_documents.func("something", runtime=make_runtime(mock_vectorstore))
 
     assert "[notes.txt]" in result
     assert "page" not in result
@@ -179,9 +178,7 @@ def test_search_documents_multiple_results():
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = docs
 
-    with patch("agent.tools.cl.user_session") as mock_session:
-        mock_session.get.return_value = mock_vectorstore
-        result = search_documents.invoke("query")
+    result = search_documents.func("query", runtime=make_runtime(mock_vectorstore))
 
     assert result.count("doc.pdf") == 3
 

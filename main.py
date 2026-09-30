@@ -1,8 +1,11 @@
+from typing import cast
+
 from langchain_community.vectorstores import Chroma
 import chainlit as cl
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.vectorstores import VectorStore
 from litellm.exceptions import (
     RateLimitError,
     BadRequestError,
@@ -14,6 +17,7 @@ from langchain_litellm import ChatLiteLLM
 from langfuse import propagate_attributes
 from langfuse.langchain import CallbackHandler
 
+from agent.agent_state import AgentContext
 from agent.graph import build_graph
 from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
@@ -57,10 +61,12 @@ async def on_settings_update(settings):
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    vectorstore: VectorStore = cl.user_session.get("vectorstore")
+
     if message.elements:
         for element in message.elements:
             try:
-                intro_text = await process_document(element)
+                intro_text = await process_document(element, vectorstore)
 
                 model = cl.user_session.get("model", DEFAULT_MODEL)
                 async with cl.Step(name="create summary..."):
@@ -117,6 +123,7 @@ async def on_message(message: cl.Message):
                 async for event in graph.astream_events(
                     {"messages": history, "model": model},
                     config=langfuse_config,
+                    context=AgentContext(vectorstore=vectorstore),
                     version="v2",
                 ):
                     if event["event"] == "on_chat_model_stream":

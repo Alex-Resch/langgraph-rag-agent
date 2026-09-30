@@ -44,7 +44,7 @@ def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
     results = runtime.context.vectorstore.similarity_search_with_relevance_scores(
         query, k=5
     )
-    relevant = [doc for doc, score in results if score < SIMILARITY_THRESHOLD]
+    relevant = [doc for doc, score in results if score >= SIMILARITY_THRESHOLD]
 
     if not relevant:
         return "NO_DOCUMENTS_FOUND"

@@ -116,7 +116,7 @@ def test_search_documents_returns_formatted_results():
     )
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.2)  # score < 0.5 → relevant
+        (mock_doc, 0.8)  # higher score = more similar → relevant
     ]
 
     result = search_documents.func(
@@ -136,7 +136,7 @@ def test_search_documents_returns_no_documents_found():
     mock_doc = Document(page_content="irrelevant content", metadata={})
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.8)  # score >= 0.5 → not relevant
+        (mock_doc, 0.1)  # below SIMILARITY_THRESHOLD → not relevant
     ]
 
     result = search_documents.func(
@@ -153,7 +153,7 @@ def test_search_documents_omits_page_if_not_in_metadata():
     mock_doc = Document(page_content="content", metadata={"source": "notes.txt"})
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = [
-        (mock_doc, 0.1)  # < 0.5 → relevant
+        (mock_doc, 0.9)  # above SIMILARITY_THRESHOLD → relevant
     ]
 
     result = search_documents.func("something", runtime=make_runtime(mock_vectorstore))
@@ -171,7 +171,7 @@ def test_search_documents_multiple_results():
             Document(
                 page_content=f"content {i}", metadata={"source": "doc.pdf", "page": i}
             ),
-            0.1,
+            0.9,
         )
         for i in range(3)
     ]

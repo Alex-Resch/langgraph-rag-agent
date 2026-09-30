@@ -25,6 +25,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = [
     "ignore::pydantic.warnings.PydanticDeprecatedSince20"
@@ -32,7 +33,11 @@ filterwarnings = [
 
 [dependency-groups]
 dev = [
+    "deepeval>=4.2.7",
+    "google-genai>=2.25.0",
     "pre-commit>=4.5.1",
     "pyright>=1.1.408",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.15.9",
 ]

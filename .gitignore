@@ -210,3 +210,6 @@ __marimo__/
 .chainlit/
 chainlit.md
 .files/
+
+# DeepEval (lokale Ergebnisse/Cache)
+.deepeval/

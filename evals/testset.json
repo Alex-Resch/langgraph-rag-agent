@@ -1,0 +1,28 @@
+{
+  "document": "data/nordheide_solar_park_report.pdf",
+  "cases": [
+    {"type": "single_page", "input": "When was the Nordheide Solar Park commissioned?", "expected_output": "On 14 March 2024.", "pages": [1]},
+    {"type": "single_page", "input": "Who led the Nordheide Solar Park project?", "expected_output": "Dr. Maria Keller.", "pages": [1]},
+    {"type": "single_page", "input": "What is the installed capacity of the solar park?", "expected_output": "18 megawatt peak (MWp).", "pages": [1]},
+    {"type": "single_page", "input": "What was the total investment for the solar park?", "expected_output": "14.5 million euros.", "pages": [2]},
+    {"type": "single_page", "input": "Which bank provided the loan and at what interest rate?", "expected_output": "Regionalbank Lüneburg, at a fixed interest rate of 3.2 percent.", "pages": [2]},
+    {"type": "single_page", "input": "How many residents invested through the citizen participation scheme?", "expected_output": "830 local residents.", "pages": [2]},
+    {"type": "single_page", "input": "What type of solar modules are used and who manufactured them?", "expected_output": "Bifacial HX-440 modules manufactured by Helion Solar.", "pages": [3]},
+    {"type": "single_page", "input": "How long is the cable connecting the park to the grid?", "expected_output": "3.4 kilometres.", "pages": [3]},
+    {"type": "single_page", "input": "How much electricity did the park generate in 2024?", "expected_output": "16.8 gigawatt hours (GWh).", "pages": [4]},
+    {"type": "single_page", "input": "What caused the longest outage in 2024?", "expected_output": "A fault in one of the inverters, on 3 August 2024, lasting eleven hours.", "pages": [4]},
+
+    {"type": "late_page", "input": "How many sheep graze on the site?", "expected_output": "Around 240 sheep.", "pages": [5]},
+    {"type": "late_page", "input": "How many bird species were counted in the 2024 survey?", "expected_output": "23 bird species.", "pages": [5]},
+    {"type": "late_page", "input": "What capacity will the planned battery storage system have?", "expected_output": "10 megawatt hours (MWh).", "pages": [6]},
+    {"type": "late_page", "input": "How much does the operator pay into the community fund each year?", "expected_output": "25,000 euros per year.", "pages": [6]},
+
+    {"type": "multi_page", "input": "What was the investment per household supplied by the park?", "expected_output": "About 1,208 euros per household (14.5 million euros for around 12,000 households).", "pages": [1, 2]},
+    {"type": "multi_page", "input": "What will the total installed capacity be after the second expansion phase?", "expected_output": "24 MWp (18 MWp today plus 6 MWp in phase two).", "pages": [1, 6]},
+    {"type": "multi_page", "input": "What is the combined cost of the solar park and the planned battery storage?", "expected_output": "17.7 million euros (14.5 million plus 3.2 million).", "pages": [2, 6]},
+
+    {"type": "not_in_document", "input": "Who is the mayor of Nordheide?", "expected_output": "The document does not contain this information.", "pages": []},
+    {"type": "not_in_document", "input": "What electricity price do households pay per kilowatt hour?", "expected_output": "The document does not contain this information.", "pages": []},
+    {"type": "not_in_document", "input": "Which company will supply the battery storage system?", "expected_output": "The document does not contain this information.", "pages": []}
+  ]
+}

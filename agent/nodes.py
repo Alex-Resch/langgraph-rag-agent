@@ -20,7 +20,12 @@ async def call_llm(state: AgentState):
             "Do NOT use search_documents just because documents were uploaded."
         )
     )
-    llm = ChatLiteLLM(model=state["model"], streaming=True, temperature=0.0)
+    llm = ChatLiteLLM(
+        model=state["model"],
+        streaming=True,
+        temperature=0.0,
+        stream_options={"include_usage": True},
+    )
     llm_with_tools = llm.bind_tools(tools)
     response = await llm_with_tools.ainvoke([system] + state["messages"])
     return {"messages": [response]}

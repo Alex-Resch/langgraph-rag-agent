@@ -2,6 +2,7 @@ from langchain_community.vectorstores import Chroma
 import chainlit as cl
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from litellm.exceptions import (
     RateLimitError,
     BadRequestError,
@@ -19,8 +20,9 @@ from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 
 load_dotenv()
 
+# noinspection PyArgumentList
 embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-langfuse_handler = CallbackHandler()
+langfuse_config = RunnableConfig(callbacks=[CallbackHandler()])
 
 
 @cl.on_chat_start
@@ -75,7 +77,14 @@ async def on_message(message: cl.Message):
                             f"{intro_text}"
                         )
                     )
-                    summary = await llm.ainvoke([summary_prompt])
+                    with propagate_attributes(
+                        session_id=cl.context.session.id,
+                        trace_name="document-summary",
+                    ):
+                        summary = await llm.ainvoke(
+                            [summary_prompt],
+                            config=langfuse_config,
+                        )
 
                 history = cl.user_session.get("history", [])
 
@@ -107,7 +116,7 @@ async def on_message(message: cl.Message):
             ):
                 async for event in graph.astream_events(
                     {"messages": history, "model": model},
-                    config={"callbacks": [langfuse_handler]},
+                    config=langfuse_config,
                     version="v2",
                 ):
                     if event["event"] == "on_chat_model_stream":

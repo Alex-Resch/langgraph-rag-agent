@@ -19,6 +19,7 @@ from langfuse.langchain import CallbackHandler
 
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
+from agent.prompts import upload_notice
 from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 
@@ -61,7 +62,7 @@ async def on_settings_update(settings):
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    vectorstore: VectorStore = cl.user_session.get("vectorstore")
+    vectorstore = cast(VectorStore, cl.user_session.get("vectorstore"))
 
     if message.elements:
         for element in message.elements:
@@ -95,13 +96,7 @@ async def on_message(message: cl.Message):
                 history = cl.user_session.get("history", [])
 
                 history.append(  # type: ignore
-                    SystemMessage(
-                        content=(
-                            f"The user just uploaded a File: '{element.name}'.\n"
-                            f"Here is a summary of the document for general context:\n{summary.content}\n"
-                            f"Only use search_documents if the user asks something about this document."
-                        )
-                    )
+                    upload_notice(element.name, str(summary.content))
                 )
                 cl.user_session.set("history", history)
             except ValueError as e:

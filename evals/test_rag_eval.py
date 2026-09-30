@@ -25,11 +25,12 @@ from deepeval.models import GeminiModel  # noqa: E402
 from deepeval.test_case import LLMTestCase, SingleTurnParams  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
 from langchain_community.vectorstores import Chroma  # noqa: E402
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage  # noqa: E402
+from langchain_core.messages import HumanMessage, ToolMessage  # noqa: E402
 from langchain_huggingface import HuggingFaceEmbeddings  # noqa: E402
 
 from agent.agent_state import AgentContext  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
+from agent.prompts import upload_notice  # noqa: E402
 from agent.tools import process_document  # noqa: E402
 from config import DEFAULT_MODEL, EMBEDDING_MODEL  # noqa: E402
 
@@ -93,15 +94,7 @@ def metrics():
 
 async def run_agent(question: str, store: Chroma) -> tuple[str, list[str]]:
     """Ask the agent a question and return its answer plus the retrieved chunks."""
-    messages = [
-        SystemMessage(
-            content=(
-                f"The user just uploaded a File: '{DOCUMENT.name}'.\n"
-                "Only use search_documents if the user asks something about this document."
-            )
-        ),
-        HumanMessage(content=question),
-    ]
+    messages = [upload_notice(DOCUMENT.name), HumanMessage(content=question)]
     result = await build_graph().ainvoke(
         {"messages": messages, "model": DEFAULT_MODEL},
         context=AgentContext(vectorstore=store),

@@ -213,3 +213,4 @@ chainlit.md
 
 # DeepEval (lokale Ergebnisse/Cache)
 .deepeval/
+/.claude/launch.json

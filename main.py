@@ -9,8 +9,9 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.vectorstores import VectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_litellm import ChatLiteLLM
-from langfuse import propagate_attributes
+from langfuse import Langfuse, propagate_attributes
 from langfuse.langchain import CallbackHandler
+from langfuse.types import MaskOtelSpansParams, MaskOtelSpansResult, OtelSpanPatch
 from litellm.exceptions import (
     BadRequestError,
     MidStreamFallbackError,
@@ -20,6 +21,7 @@ from litellm.exceptions import (
 
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
+from agent.guardrails import mask_pii
 from agent.prompts import upload_notice
 from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
@@ -34,6 +36,24 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 
+def mask_spans(*, params: MaskOtelSpansParams) -> MaskOtelSpansResult:
+    """Mask PII in every trace attribute before it is sent to Langfuse."""
+    return MaskOtelSpansResult(
+        span_patches={
+            span_id: OtelSpanPatch(
+                set_attributes={
+                    key: mask_pii(value)
+                    for key, value in span.attributes.items()
+                    if isinstance(value, str)
+                }
+            )
+            for span_id, span in params.spans.items()
+        }
+    )
+
+
+# noinspection PyTypeChecker
+Langfuse(mask_otel_spans=mask_spans)
 langfuse_config = RunnableConfig(callbacks=[CallbackHandler()])
 
 
@@ -129,9 +149,17 @@ async def on_message(message: cl.Message):
                     context=AgentContext(vectorstore=vectorstore),
                     version="v2",
                 ):
-                    if event["event"] == "on_chat_model_stream":
+                    node = event.get("metadata", {}).get("langgraph_node")
+                    if event["event"] == "on_chat_model_stream" and node == "call_llm":
                         chunk = event["data"]["chunk"]
                         await answer.stream_token(chunk.content)
+                    elif (
+                        event["event"] == "on_chain_end"
+                        and event["name"] == "input_guard"
+                    ):
+                        messages = event["data"]["output"]["messages"]
+                        if messages and isinstance(messages[-1], AIMessage):
+                            await answer.stream_token(messages[-1].text)
     except RateLimitError as e:
         print("ratelimit_e: ", e)
         error_msg = (

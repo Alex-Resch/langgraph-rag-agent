@@ -60,7 +60,11 @@ def make_stream_event(content="streamed token"):
     """Return a single on_chat_model_stream event as yielded by astream_events."""
     chunk = MagicMock()
     chunk.content = content
-    return {"event": "on_chat_model_stream", "data": {"chunk": chunk}}
+    return {
+        "event": "on_chat_model_stream",
+        "metadata": {"langgraph_node": "call_llm"},
+        "data": {"chunk": chunk},
+    }
 
 
 async def mock_astream_events(*args, **kwargs):

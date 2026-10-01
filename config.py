@@ -1,9 +1,9 @@
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
-DEFAULT_MODEL = "gemini/gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini/gemini-2.5-flash"
 AVAILABLE_MODELS = {
-    "Gemini 2.5 Flash Lite": "gemini/gemini-2.5-flash-lite",
+    "Gemini 2.5 Flash": "gemini/gemini-2.5-flash",
 }
-SIMILARITY_THRESHOLD = 0.5
+SIMILARITY_THRESHOLD = 0.2
 TAVILY_MAX_RESULTS = 10
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"

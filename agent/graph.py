@@ -1,12 +1,12 @@
-# graph.py
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
-from agent.agent_state import AgentState
+
+from agent.agent_state import AgentContext, AgentState
 from agent.nodes import call_llm, should_continue, tools
 
 
 def build_graph():
-    graph = StateGraph(AgentState)
+    graph = StateGraph(AgentState, context_schema=AgentContext)
 
     graph.add_node("call_llm", call_llm)
     graph.add_node("tools", ToolNode(tools))

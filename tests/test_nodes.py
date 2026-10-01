@@ -1,6 +1,7 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agent.agent_state import AgentState
 
@@ -79,7 +80,10 @@ async def test_call_llm_uses_model_from_state():
         await call_llm(make_state(model="gemini/gemini-2.5-flash"))
 
     MockChatLiteLLM.assert_called_once_with(
-        model="gemini/gemini-2.5-flash", streaming=True
+        model="gemini/gemini-2.5-flash",
+        streaming=True,
+        temperature=0.0,
+        stream_options={"include_usage": True},
     )
 
 

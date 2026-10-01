@@ -1,0 +1,50 @@
+name: RAG Evals
+
+# Evals call real LLM APIs (costs + rate limits), so they only run when code
+# that affects answer quality changes, or when started manually.
+on:
+  pull_request:
+    paths:
+      - "agent/**"
+      - "config.py"
+      - "evals/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Reuse the downloaded embedding model between runs.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('config.py') }}
+
+      - name: Run RAG evals
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          # Optional: without these, traces and scores are simply not sent.
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: uv run pytest evals -s

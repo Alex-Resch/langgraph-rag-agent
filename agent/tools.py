@@ -1,19 +1,18 @@
-from typing import cast
-
 from chainlit.element import Element
-from langchain_community.vectorstores import Chroma
-from langchain_core.tools import tool
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.document_loaders import (
     PyPDFLoader,
-    UnstructuredMarkdownLoader,
     TextLoader,
+    UnstructuredMarkdownLoader,
 )
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.tools import tool
+from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import chainlit as cl
+from langgraph.prebuilt import ToolRuntime
 from tavily import UsageLimitExceededError
 
-from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
+from agent.agent_state import AgentContext
+from config import CHUNK_OVERLAP, CHUNK_SIZE, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
 
 def get_document_loader(element: Element):
@@ -28,24 +27,24 @@ def get_document_loader(element: Element):
     raise ValueError(f"Unsupported file type: '{element.name}'")
 
 
-async def process_document(element: Element) -> str:
+async def process_document(element: Element, vectorstore: VectorStore) -> str:
     loader = get_document_loader(element)
     pages = loader.load()
     intro_text = "\n".join([page.page_content for page in pages[:2]])
     chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
     ).split_documents(pages)
-    vectorstore = cast(Chroma, cl.user_session.get("vectorstore"))
     vectorstore.add_documents(chunks)
     return intro_text
 
 
 @tool
-def search_documents(query: str) -> str:
+def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
     """Search uploaded documents for relevant information."""
-    vectorstore = cast(Chroma, cl.user_session.get("vectorstore"))
-    results = vectorstore.similarity_search_with_relevance_scores(query, k=5)
-    relevant = [doc for doc, score in results if score < SIMILARITY_THRESHOLD]
+    results = runtime.context.vectorstore.similarity_search_with_relevance_scores(
+        query, k=5
+    )
+    relevant = [doc for doc, score in results if score >= SIMILARITY_THRESHOLD]
 
     if not relevant:
         return "NO_DOCUMENTS_FOUND"
@@ -68,5 +67,5 @@ def web_search_fallback(query: str) -> str:
         return search
     except UsageLimitExceededError:
         return "Web search failed: usage limit exceeded."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - a failing web search must not crash the agent
         return f"Web search failed: {e}"

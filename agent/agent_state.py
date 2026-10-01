@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TypedDict, Annotated
+from typing import Annotated, TypedDict
 
 from langchain_core.vectorstores import VectorStore
 from langgraph.graph import add_messages

@@ -1,21 +1,22 @@
+from functools import cache
 from typing import cast
 
-from langchain_community.vectorstores import Chroma
 import chainlit as cl
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_community.vectorstores import Chroma
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.vectorstores import VectorStore
-from litellm.exceptions import (
-    RateLimitError,
-    BadRequestError,
-    ServiceUnavailableError,
-    MidStreamFallbackError,
-)
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_litellm import ChatLiteLLM
 from langfuse import propagate_attributes
 from langfuse.langchain import CallbackHandler
+from litellm.exceptions import (
+    BadRequestError,
+    MidStreamFallbackError,
+    RateLimitError,
+    ServiceUnavailableError,
+)
 
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
@@ -25,8 +26,14 @@ from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
 
 load_dotenv()
 
-# noinspection PyArgumentList
-embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+
+@cache
+def get_embeddings() -> HuggingFaceEmbeddings:
+    """Load the embedding model on first use instead of at import time."""
+    # noinspection PyArgumentList
+    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+
+
 langfuse_config = RunnableConfig(callbacks=[CallbackHandler()])
 
 
@@ -36,7 +43,8 @@ async def on_chat_start():
     cl.user_session.set(
         "vectorstore",
         Chroma(
-            embedding_function=embeddings, collection_metadata={"hnsw:space": "cosine"}
+            embedding_function=get_embeddings(),
+            collection_metadata={"hnsw:space": "cosine"},
         ),
     )
     cl.user_session.set("history", [])
@@ -140,7 +148,7 @@ async def on_message(message: cl.Message):
     except ServiceUnavailableError as e:
         print("service_unavailable: ", e)
         error_msg = "❌ Model API is currently unavailable. Try again later or switch the model."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - show any unexpected error in the chat
         error_msg = f"❌ Unexpected Error: {e}"
 
     if error_msg:

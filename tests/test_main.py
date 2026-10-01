@@ -1,10 +1,18 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 from chainlit.context import context_var
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from litellm.exceptions import RateLimitError, BadRequestError, ServiceUnavailableError
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from litellm.exceptions import BadRequestError, RateLimitError, ServiceUnavailableError
 
 from main import on_message
+
+
+@pytest.fixture(autouse=True)
+def mock_embeddings():
+    """Keep tests from loading the real embedding model."""
+    with patch("main.get_embeddings"):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -39,6 +47,13 @@ def make_mock_answer():
     mock.send = AsyncMock()
     mock.content = "streamed answer"
     return mock
+
+
+def make_mock_summary_llm():
+    """Return a ChatLiteLLM mock whose ainvoke yields a short document summary."""
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="short summary"))
+    return llm
 
 
 def make_stream_event(content="streamed token"):
@@ -114,27 +129,6 @@ async def test_on_chat_start_initializes_empty_history():
         await on_chat_start()
 
     mock_session.set.assert_any_call("history", [])
-
-
-@pytest.mark.asyncio
-async def test_on_chat_start_sends_welcome_message():
-    """on_chat_start should send exactly one welcome message to the user."""
-    from main import on_chat_start
-
-    mock_message_instance = MagicMock()
-    mock_message_instance.send = AsyncMock()
-
-    with (
-        patch("main.build_graph"),
-        patch("main.Chroma"),
-        patch("main.cl.user_session"),
-        patch("main.cl.ChatSettings") as MockSettings,
-        patch("main.cl.Message", return_value=mock_message_instance),
-    ):
-        MockSettings.return_value.send = AsyncMock()
-        await on_chat_start()
-
-    mock_message_instance.send.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -278,6 +272,7 @@ async def test_on_message_calls_process_document_for_each_element():
         patch("main.cl.user_session") as mock_session,
         patch("main.cl.Message", return_value=mock_answer),
         patch("main.cl.Step", return_value=mock_step),
+        patch("main.ChatLiteLLM", return_value=make_mock_summary_llm()),
     ):
         mock_proc = AsyncMock(return_value=3)
         mock_session.get.side_effect = lambda key, default=None: {
@@ -444,7 +439,7 @@ async def test_on_message_handles_generic_exception():
     from main import on_message
 
     async def raise_generic(*args, **kwargs):
-        raise Exception("something went wrong")
+        raise RuntimeError("something went wrong")
         yield
 
     mock_graph = MagicMock()
@@ -498,6 +493,7 @@ async def test_on_message_appends_system_message_to_history_after_upload():
         patch("main.cl.user_session") as mock_session,
         patch("main.cl.Message", return_value=mock_answer),
         patch("main.cl.Step", return_value=mock_step),
+        patch("main.ChatLiteLLM", return_value=make_mock_summary_llm()),
     ):
         mock_session.get.side_effect = lambda key, default=None: {
             "model": "groq/llama-3.3-70b-versatile",

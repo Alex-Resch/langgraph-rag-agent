@@ -1,18 +1,18 @@
 from chainlit.element import Element
-from langchain_core.tools import tool
-from langchain_core.vectorstores import VectorStore
-from langgraph.prebuilt import ToolRuntime
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_community.document_loaders import (
     PyPDFLoader,
-    UnstructuredMarkdownLoader,
     TextLoader,
+    UnstructuredMarkdownLoader,
 )
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.tools import tool
+from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langgraph.prebuilt import ToolRuntime
 from tavily import UsageLimitExceededError
 
 from agent.agent_state import AgentContext
-from config import CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
+from config import CHUNK_OVERLAP, CHUNK_SIZE, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
 
 def get_document_loader(element: Element):
@@ -67,5 +67,5 @@ def web_search_fallback(query: str) -> str:
         return search
     except UsageLimitExceededError:
         return "Web search failed: usage limit exceeded."
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - a failing web search must not crash the agent
         return f"Web search failed: {e}"

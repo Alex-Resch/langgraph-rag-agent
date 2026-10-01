@@ -1,9 +1,10 @@
-import pytest
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+import pytest
 from chainlit.element import Element
 from langchain_core.documents import Document
+from langchain_core.tools import StructuredTool
 from tavily import UsageLimitExceededError
 
 from agent.agent_state import AgentContext
@@ -14,6 +15,15 @@ def make_runtime(vectorstore):
     runtime = MagicMock()
     runtime.context = AgentContext(vectorstore=vectorstore)
     return runtime
+
+
+def run_search(query, vectorstore):
+    """Call the search_documents tool function directly with an injected runtime."""
+    from agent.tools import search_documents
+
+    tool = cast(StructuredTool, search_documents)
+    assert tool.func is not None
+    return tool.func(query, runtime=make_runtime(vectorstore))
 
 
 class MockElement(Element):
@@ -108,7 +118,6 @@ async def test_process_document_adds_chunks_to_vectorstore():
 
 def test_search_documents_returns_formatted_results():
     """Results above the similarity threshold should be returned with source and page."""
-    from agent.tools import search_documents
 
     mock_doc = Document(
         page_content="Attention is all you need.",
@@ -119,9 +128,7 @@ def test_search_documents_returns_formatted_results():
         (mock_doc, 0.8)  # higher score = more similar → relevant
     ]
 
-    result = search_documents.func(
-        "What is attention?", runtime=make_runtime(mock_vectorstore)
-    )
+    result = run_search("What is attention?", mock_vectorstore)
 
     assert "Found in documents" in result
     assert "transformer.pdf" in result
@@ -131,7 +138,6 @@ def test_search_documents_returns_formatted_results():
 
 def test_search_documents_returns_no_documents_found():
     """Results below the similarity threshold should trigger the NO_DOCUMENTS_FOUND sentinel."""
-    from agent.tools import search_documents
 
     mock_doc = Document(page_content="irrelevant content", metadata={})
     mock_vectorstore = MagicMock()
@@ -139,16 +145,13 @@ def test_search_documents_returns_no_documents_found():
         (mock_doc, 0.1)  # below SIMILARITY_THRESHOLD → not relevant
     ]
 
-    result = search_documents.func(
-        "quantum physics", runtime=make_runtime(mock_vectorstore)
-    )
+    result = run_search("quantum physics", mock_vectorstore)
 
     assert result == "NO_DOCUMENTS_FOUND"
 
 
 def test_search_documents_omits_page_if_not_in_metadata():
     """Source reference should not include a page number if the metadata has none."""
-    from agent.tools import search_documents
 
     mock_doc = Document(page_content="content", metadata={"source": "notes.txt"})
     mock_vectorstore = MagicMock()
@@ -156,7 +159,7 @@ def test_search_documents_omits_page_if_not_in_metadata():
         (mock_doc, 0.9)  # above SIMILARITY_THRESHOLD → relevant
     ]
 
-    result = search_documents.func("something", runtime=make_runtime(mock_vectorstore))
+    result = run_search("something", mock_vectorstore)
 
     assert "[notes.txt]" in result
     assert "page" not in result
@@ -164,7 +167,6 @@ def test_search_documents_omits_page_if_not_in_metadata():
 
 def test_search_documents_multiple_results():
     """All relevant chunks should appear in the output."""
-    from agent.tools import search_documents
 
     docs = [
         (
@@ -178,7 +180,7 @@ def test_search_documents_multiple_results():
     mock_vectorstore = MagicMock()
     mock_vectorstore.similarity_search_with_relevance_scores.return_value = docs
 
-    result = search_documents.func("query", runtime=make_runtime(mock_vectorstore))
+    result = run_search("query", mock_vectorstore)
 
     assert result.count("doc.pdf") == 3
 

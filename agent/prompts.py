@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from langchain_core.messages import SystemMessage
 
@@ -7,7 +7,7 @@ def system_prompt() -> SystemMessage:
     """Instructions for the agent, including today's date and when to use which tool."""
     return SystemMessage(
         content=(
-            f"You are a helpful assistant. Today's date is {datetime.now().strftime('%B %d, %Y')}. "
+            f"You are a helpful assistant. Today's date is {datetime.now(UTC).strftime('%B %d, %Y')}. "
             "Choose tools based on the QUESTION:\n"
             "- search_documents: whenever a document was uploaded and the question "
             "could be answered by it, even if the question does not mention the document. "

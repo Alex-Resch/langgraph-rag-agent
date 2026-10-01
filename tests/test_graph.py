@@ -1,4 +1,5 @@
 import pytest
+
 from agent.graph import build_graph
 
 
@@ -36,8 +37,9 @@ async def test_graph_runs_both_nodes():
     """Integration check: a single ainvoke call should trigger both the
     search node and the call_llm node, and the final state should contain
     the AIMessage produced by the LLM."""
-    from unittest.mock import patch, AsyncMock, MagicMock
-    from langchain_core.messages import HumanMessage, AIMessage
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from langchain_core.messages import AIMessage, HumanMessage
 
     mock_step = MagicMock()
     mock_step.__aenter__ = AsyncMock(return_value=None)

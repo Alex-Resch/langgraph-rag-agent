@@ -14,27 +14,27 @@ from types import SimpleNamespace
 
 os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "1")
 
-import pytest  # noqa: E402
-from deepeval import evaluate  # noqa: E402
-from deepeval.evaluate.configs import AsyncConfig, DisplayConfig  # noqa: E402
-from deepeval.metrics import (  # noqa: E402
+import pytest
+from deepeval import evaluate
+from deepeval.evaluate.configs import AsyncConfig, DisplayConfig
+from deepeval.metrics import (
     AnswerRelevancyMetric,
     ContextualPrecisionMetric,
     FaithfulnessMetric,
     GEval,
 )
-from deepeval.models import GeminiModel  # noqa: E402
-from deepeval.test_case import LLMTestCase, SingleTurnParams  # noqa: E402
-from dotenv import load_dotenv  # noqa: E402
-from langchain_community.vectorstores import Chroma  # noqa: E402
-from langchain_core.messages import HumanMessage, ToolMessage  # noqa: E402
-from langchain_huggingface import HuggingFaceEmbeddings  # noqa: E402
+from deepeval.models import GeminiModel
+from deepeval.test_case import LLMTestCase, SingleTurnParams
+from dotenv import load_dotenv
+from langchain_community.vectorstores import Chroma
+from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_huggingface import HuggingFaceEmbeddings
 
-from agent.agent_state import AgentContext  # noqa: E402
-from agent.graph import build_graph  # noqa: E402
-from agent.prompts import upload_notice  # noqa: E402
-from agent.tools import process_document  # noqa: E402
-from config import DEFAULT_MODEL, EMBEDDING_MODEL  # noqa: E402
+from agent.agent_state import AgentContext
+from agent.graph import build_graph
+from agent.prompts import upload_notice
+from agent.tools import process_document
+from config import DEFAULT_MODEL, EMBEDDING_MODEL
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -74,16 +74,22 @@ def metrics():
         name="Correctness",
         evaluation_steps=[
             "Identify the key facts in the expected output (numbers, names, dates, units).",
-            "Check whether the actual output states each key fact correctly. Full "
-            "sentences, different wording or formatting and restating the question "
-            "are fine and must not be penalized.",
-            "Heavily penalize if a key fact is missing or contradicted, or if the "
-            "actual output adds a fact that is wrong.",
-            "If the expected output says the information is not in the document, "
-            "the actual output must either say that it cannot find the answer, or "
-            "answer from a web search while clearly stating that the answer does "
-            "not come from the document. Presenting outside information as if it "
-            "came from the document is wrong.",
+            (
+                "Check whether the actual output states each key fact correctly. Full "
+                "sentences, different wording or formatting and restating the question "
+                "are fine and must not be penalized."
+            ),
+            (
+                "Heavily penalize if a key fact is missing or contradicted, or if the "
+                "actual output adds a fact that is wrong."
+            ),
+            (
+                "If the expected output says the information is not in the document, "
+                "the actual output must either say that it cannot find the answer, or "
+                "answer from a web search while clearly stating that the answer does "
+                "not come from the document. Presenting outside information as if it "
+                "came from the document is wrong."
+            ),
         ],
         evaluation_params=[
             SingleTurnParams.INPUT,

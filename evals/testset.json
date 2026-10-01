@@ -17,12 +17,12 @@
     {"type": "late_page", "input": "What capacity will the planned battery storage system have?", "expected_output": "10 megawatt hours (MWh).", "pages": [6]},
     {"type": "late_page", "input": "How much does the operator pay into the community fund each year?", "expected_output": "25,000 euros per year.", "pages": [6]},
 
-    {"type": "multi_page", "input": "What was the investment per household supplied by the park?", "expected_output": "About 1,208 euros per household (14.5 million euros for around 12,000 households).", "pages": [1, 2]},
-    {"type": "multi_page", "input": "What will the total installed capacity be after the second expansion phase?", "expected_output": "24 MWp (18 MWp today plus 6 MWp in phase two).", "pages": [1, 6]},
-    {"type": "multi_page", "input": "What is the combined cost of the solar park and the planned battery storage?", "expected_output": "17.7 million euros (14.5 million plus 3.2 million).", "pages": [2, 6]},
+    {"type": "multi_page", "input": "What was the investment per household supplied by the park?", "calculated": true, "expected_output": "About 1,208 euros per household (14.5 million euros for around 12,000 households).", "pages": [1, 2]},
+    {"type": "multi_page", "input": "What will the total installed capacity be after the second expansion phase?", "calculated": true, "expected_output": "24 MWp (18 MWp today plus 6 MWp in phase two).", "pages": [1, 6]},
+    {"type": "multi_page", "input": "What is the combined cost of the solar park and the planned battery storage?", "calculated": true, "expected_output": "17.7 million euros (14.5 million plus 3.2 million).", "pages": [2, 6]},
 
-    {"type": "not_in_document", "input": "Who is the mayor of Nordheide?", "expected_output": "The document does not contain this information.", "pages": []},
-    {"type": "not_in_document", "input": "What electricity price do households pay per kilowatt hour?", "expected_output": "The document does not contain this information.", "pages": []},
-    {"type": "not_in_document", "input": "Which company will supply the battery storage system?", "expected_output": "The document does not contain this information.", "pages": []}
+    {"type": "not_in_document", "input": "Who is the mayor of Nordheide?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []},
+    {"type": "not_in_document", "input": "What electricity price do households pay per kilowatt hour?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []},
+    {"type": "not_in_document", "input": "Which company will supply the battery storage system?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []}
   ]
 }

@@ -1,5 +1,6 @@
 """RAG quality evals: runs every question of testset.json through the agent and
-lets an LLM judge score the answers with DeepEval.
+lets an LLM judge score the answers with DeepEval. Every case is traced in
+Langfuse (environment "evals") and gets the judge's scores attached.
 
 Run with:  uv run pytest evals/ -s
 """
@@ -9,10 +10,12 @@ import json
 import os
 import re
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "1")
+os.environ.setdefault("LANGFUSE_TRACING_ENVIRONMENT", "evals")
 
 import pytest
 from deepeval import evaluate
@@ -29,6 +32,8 @@ from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_huggingface import HuggingFaceEmbeddings
+from langfuse import get_client, propagate_attributes
+from langfuse.langchain import CallbackHandler
 
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
@@ -48,6 +53,10 @@ THRESHOLD = 0.7
 PRECISION_THRESHOLD = 0.5
 MIN_PASS_RATE = 0.9
 NO_CONTEXT = "<no documents retrieved>"
+# One Langfuse session per eval run, so runs can be compared over time.
+EVAL_SESSION_ID = "eval-" + (
+    os.environ.get("GITHUB_RUN_ID") or datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+)
 
 
 @pytest.fixture(scope="module")
@@ -118,13 +127,20 @@ def metric_group(case: dict) -> str:
     return "calculated" if case.get("calculated") else "full"
 
 
-async def run_agent(question: str, store: Chroma) -> tuple[str, list[str]]:
-    """Ask the agent a question and return its answer plus the retrieved chunks."""
+async def run_agent(question: str, store: Chroma) -> tuple[str, list[str], str]:
+    """Ask the agent a question and return its answer, the retrieved chunks and
+    the Langfuse trace id of the run."""
     messages = [upload_notice(DOCUMENT.name), HumanMessage(content=question)]
-    result = await build_graph().ainvoke(
-        {"messages": messages, "model": DEFAULT_MODEL},
-        context=AgentContext(vectorstore=store),
-    )
+    with get_client().start_as_current_observation(
+        name="rag-eval", input=question
+    ) as span:
+        result = await build_graph().ainvoke(
+            {"messages": messages, "model": DEFAULT_MODEL},
+            config={"callbacks": [CallbackHandler()]},
+            context=AgentContext(vectorstore=store),
+        )
+        answer = str(result["messages"][-1].content)
+        span.update(output=answer)
 
     chunks = []
     for message in result["messages"]:
@@ -133,18 +149,45 @@ async def run_agent(question: str, store: Chroma) -> tuple[str, list[str]]:
             if body != "NO_DOCUMENTS_FOUND":
                 chunks.extend(re.split(r"\n\n(?=\[)", body))
 
-    return str(result["messages"][-1].content), chunks or [NO_CONTEXT]
+    return answer, chunks or [NO_CONTEXT], span.trace_id
+
+
+def send_scores_to_langfuse(results, trace_ids: dict[str, str]) -> None:
+    """Attach every judge score (and whether the case passed) to its trace."""
+    langfuse = get_client()
+    for result in results:
+        trace_id = trace_ids[result.name]
+        for metric in result.metrics_data or []:
+            if metric.score is not None:
+                langfuse.create_score(
+                    trace_id=trace_id,
+                    name=metric.name,
+                    value=metric.score,
+                    comment=metric.reason,
+                )
+        langfuse.create_score(
+            trace_id=trace_id,
+            name="passed",
+            value=1 if result.success else 0,
+            data_type="BOOLEAN",
+        )
+    langfuse.flush()
 
 
 def test_rag_quality(vectorstore, metrics):
     """Fail only if fewer than MIN_PASS_RATE of all cases pass, since single
     LLM-judged cases can fluctuate between runs."""
     groups: dict[str, list[LLMTestCase]] = defaultdict(list)
+    trace_ids: dict[str, str] = {}
     for case in TESTSET["cases"]:
-        answer, retrieval_context = asyncio.run(run_agent(case["input"], vectorstore))
+        name = f"{case['type']}: {case['input']}"
+        with propagate_attributes(session_id=EVAL_SESSION_ID, tags=["eval"]):
+            answer, retrieval_context, trace_ids[name] = asyncio.run(
+                run_agent(case["input"], vectorstore)
+            )
         groups[metric_group(case)].append(
             LLMTestCase(
-                name=f"{case['type']}: {case['input']}",
+                name=name,
                 input=case["input"],
                 actual_output=answer,
                 expected_output=case["expected_output"],
@@ -160,6 +203,8 @@ def test_rag_quality(vectorstore, metrics):
             async_config=AsyncConfig(max_concurrent=5),
             display_config=DisplayConfig(print_results=False, show_indicator=False),
         ).test_results
+
+    send_scores_to_langfuse(results, trace_ids)
 
     failed = [r for r in results if not r.success]
     pass_rate = 1 - len(failed) / len(results)

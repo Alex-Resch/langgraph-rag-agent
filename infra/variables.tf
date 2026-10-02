@@ -46,3 +46,9 @@ variable "app_secrets" {
   type        = map(string)
   sensitive   = true
 }
+
+variable "github_repository" {
+  description = "Only this repository's main branch may deploy, as owner/name."
+  type        = string
+  default     = "Alex-Resch/langgraph-rag-agent"
+}

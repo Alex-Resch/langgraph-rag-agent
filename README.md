@@ -4,49 +4,46 @@ emoji: 🤖
 colorFrom: blue
 colorTo: green
 sdk: docker
+app_port: 7860
 pinned: false
 ---
 
 # langgraph-rag-agent
 
-A production-oriented RAG chatbot built with **LangGraph**, **LiteLLM**, and **Chainlit**. Upload documents and ask questions — the agent retrieves relevant context from your files and answers with source attribution, or falls back to live web search when no relevant documents are found.
+A production-oriented RAG chatbot built with **LangGraph**, **LiteLLM** and **Chainlit**. Upload documents and ask questions — a tool-calling agent searches your files and answers with source attribution, or searches the web when the answer is not in your documents.
 
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
-![LangGraph](https://img.shields.io/badge/LangGraph-0.x-orange)
+Beyond the agent itself, the project covers what it takes to run an LLM app in production: **observability** with Langfuse, **automated evals** in CI, **guardrails** against prompt injection and PII leaks, and **infrastructure as code** for AWS.
+
+![Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.x-orange)
 ![Chainlit](https://img.shields.io/badge/Chainlit-UI-green)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
+![Terraform](https://img.shields.io/badge/Terraform-AWS-purple?logo=terraform)
 
 ---
 
 ## Features
 
-- **Multi-model support** — switch between Gemini 2.5 Flash and Llama 3.3 70b (via Groq) at runtime from the UI
-- **RAG pipeline** — upload PDF, TXT, or Markdown files; documents are split, embedded, and stored in Chroma
-- **Source attribution** — every answer from a document includes the filename and page number
-- **Web search fallback** — if no uploaded document contains relevant content, Tavily search is used automatically
-- **Streaming** — token-by-token output via LiteLLM's async streaming interface
-- **Transparent reasoning** — Chainlit `Step` blocks show whether the agent is searching documents or the web
-- **Tested** — unit and integration tests covering nodes, tools, and graph compilation
+- **Tool-calling agent** — the LLM decides when to search the uploaded documents and when to fall back to Tavily web search
+- **RAG pipeline** — upload PDF, TXT or Markdown files; documents are split, embedded (`BAAI/bge-base-en-v1.5`) and stored in Chroma
+- **Source attribution** — answers from documents cite the file and page; web answers say explicitly that they are not from the document
+- **Input guardrail** — structured PII (emails, phone numbers, IBANs, credit cards, …) is masked with Presidio, prompt injection and harmful requests are blocked by an LLM safety check
+- **Observability** — every request is traced in Langfuse with token usage, costs and session IDs; PII is masked before traces leave the app
+- **Evals** — RAG quality and guardrail detection are measured with DeepEval on every relevant pull request
+- **Infrastructure as code** — Terraform for AWS ECS Fargate, deployed by GitHub Actions without stored AWS keys (OIDC)
+- **Streaming** — token-by-token output in the Chainlit UI
 
 ---
- 
+
 ## Live Demo
 
 🚀 **[Try it on Hugging Face Spaces](https://huggingface.co/spaces/Alex-Resch/langgraph-rag-agent)** — no setup required, runs in your browser.
- 
----
 
----
+### Try it out
 
-## Try it out
-
-Download the sample document and upload it to test the RAG pipeline:
-
-📄 [attention-is-all-you-need.pdf](https://arxiv.org/pdf/1706.03762) — the original Transformer paper
-Example questions:
-- "Who are the authors?"
-- "What problem do Transformers solve compared to RNNs?"
-- "What is the role of the attention mechanism?"
+Upload a PDF, for example the evaluation report [`evals/data/nordheide_solar_park_report.pdf`](evals/data/nordheide_solar_park_report.pdf) (a fictional 6-page report), and ask:
+- "Which bank provided the loan and at what interest rate?"
+- "What was the investment per household supplied by the park?" (calculated from two pages)
+- "Who is the mayor of Nordheide?" (not in the document → web search)
 
 ---
 
@@ -56,27 +53,94 @@ Example questions:
 User message
       │
       ▼
-┌─────────────────────────────────────────────────────┐
-│                   LangGraph Graph                   │
-│                                                     │
-│  ┌─────────────────────┐    ┌─────────────────────┐ │
-│  │   search_pipeline   │───▶│     call_llm        │ │
-│  │                     │    │                     │ │
-│  │  1. search_documents│    │  ChatLiteLLM        │ │
-│  │     (Chroma / cosine│    │  (Gemini / Llama)   │ │
-│  │      similarity)    │    │  streaming=True     │ │
-│  │                     │    │                     │ │
-│  │  2. web_search_     │    │  SystemMessage +    │ │
-│  │     fallback        │    │  full history       │ │
-│  │     (Tavily)        │    │                     │ │
-│  └─────────────────────┘    └─────────────────────┘ │
-└─────────────────────────────────────────────────────┘
-      │
-      ▼
-Streamed answer with [source, page N]
+┌──────────────────────────────────────────────────────────────┐
+│                       LangGraph Graph                        │
+│                                                              │
+│  ┌──────────────┐ blocked ┌─────┐                            │
+│  │ input_guard  │────────▶│ END │  "I can't help with that"  │
+│  │              │         └─────┘                            │
+│  │ Presidio PII │                                            │
+│  │ + LLM safety │                                            │
+│  └──────┬───────┘                                            │
+│         │ safe                                               │
+│         ▼                                                    │
+│  ┌──────────────┐  tool calls  ┌──────────────────────────┐  │
+│  │   call_llm   │─────────────▶│          tools           │  │
+│  │              │◀─────────────│ search_documents (Chroma)│  │
+│  │ Gemini 2.5   │   results    │ web_search_fallback      │  │
+│  │ Flash        │              │ (Tavily)                 │  │
+│  └──────┬───────┘              └──────────────────────────┘  │
+│         │ final answer                                       │
+└─────────┼────────────────────────────────────────────────────┘
+          ▼
+Streamed answer with sources ──── traces ───▶ Langfuse
 ```
 
-**Control flow:** The search node always runs first. It queries the Chroma vectorstore with cosine similarity. Results with a score ≥ the configured threshold are injected as a `SystemMessage` into the graph state. If no relevant chunks are found (`NO_DOCUMENTS_FOUND`), Tavily web search runs instead. The LLM node then receives the full conversation history plus the retrieved context and streams a response.
+- **`input_guard`** masks structured PII in all user messages and asks `gemini-2.5-flash-lite` (structured output) whether the latest message is a prompt injection or a harmful request. Off-topic questions are allowed on purpose.
+- **`call_llm`** runs Gemini 2.5 Flash with the tools bound. It loops with the **`tools`** node until it can answer.
+- The vectorstore is passed to the tools via LangGraph's runtime context, so the agent has no dependency on the UI.
+
+### Why there is no output guardrail
+
+The input guardrail is enough for this use case, so an output check was left out deliberately:
+- Users only ever see their own uploaded documents, so answers cannot leak someone else's data.
+- Answers are streamed — an output check would either show PII before it runs or remove streaming.
+- Traces are masked separately before they are exported to Langfuse.
+
+---
+
+## Observability
+
+The app sends every chat message and document summary to [Langfuse](https://langfuse.com) via the LangChain callback handler:
+
+- traces grouped by Chainlit session, with every LangGraph node, tool call and LLM generation
+- token usage (also while streaming) and costs per request
+- PII masked in all span attributes before export (`mask_otel_spans`)
+
+Eval runs are traced too, in a separate Langfuse environment, with each metric stored as a score on its trace.
+
+---
+
+## Evals
+
+Evals run with [DeepEval](https://deepeval.com) and `gemini-2.5-flash-lite` as the judge (`uv run pytest evals -s`).
+
+| Suite | Test set | Metrics | Gate | Latest result |
+|---|---|---|---|---|
+| RAG | 20 questions on a fictional 6-page report (single page, late page, multi-page, calculations, not in document) | Correctness (GEval), Answer Relevancy, Faithfulness, Contextual Precision | ≥ 90 % of cases pass | 20/20 |
+| Guardrail | 15 attacks, 10 harmless edge cases | detection rate, false positives | ≥ 90 % detected, ≤ 1 false positive | 15/15 detected, 0/10 false positives |
+
+The evals workflow runs on every pull request that touches the agent, the config or the evals, and pushes scores to Langfuse.
+
+---
+
+## Deployment on AWS
+
+`infra/` contains Terraform for a complete AWS setup in `eu-central-1`:
+
+| Component | Purpose |
+|---|---|
+| ECS Fargate (ARM64) + Application Load Balancer | runs the container, sticky sessions for Chainlit's WebSocket |
+| ECR | container registry |
+| SSM Parameter Store (SecureString) | API keys, injected into the container at start |
+| IAM roles | task execution role + GitHub OIDC role limited to this repository's `main` branch, this ECR repository and this ECS service |
+| CloudWatch Logs | container logs |
+| AWS Budgets | email alert as soon as monthly costs exceed 1 $ |
+
+The **Deploy** workflow (`workflow_dispatch`) logs in to AWS via OIDC, builds the ARM64 image on GitHub and rolls it out to ECS.
+
+```bash
+cp infra/terraform.tfvars.example infra/terraform.tfvars   # set budget_alert_email
+export TF_VAR_app_secrets='{"GEMINI_API_KEY":"...","TAVILY_API_KEY":"...","LANGFUSE_PUBLIC_KEY":"...","LANGFUSE_SECRET_KEY":"...","LANGFUSE_BASE_URL":"https://cloud.langfuse.com"}'
+terraform -chdir=infra init
+terraform -chdir=infra apply
+gh variable set AWS_ROLE_ARN --body "$(terraform -chdir=infra output -raw github_deploy_role_arn)"
+gh workflow run deploy.yml
+terraform -chdir=infra output app_url
+terraform -chdir=infra destroy                              # when done
+```
+
+The setup has been deployed, tested end to end and destroyed again — it is meant for on-demand deployments, the permanent demo runs on Hugging Face Spaces.
 
 ---
 
@@ -86,13 +150,16 @@ Streamed answer with [source, page N]
 |---|---|
 | Orchestration | [LangGraph](https://github.com/langchain-ai/langgraph) |
 | LLM interface | [LiteLLM](https://github.com/BerriAI/litellm) via `ChatLiteLLM` |
-| Models | Gemini 2.5 Flash · Llama 3.3 70b (Groq) |
+| Models | Gemini 2.5 Flash (agent) · Gemini 2.5 Flash Lite (guardrail, eval judge) |
 | Vector store | [Chroma](https://www.trychroma.com/) |
-| Embeddings | [SentenceTransformers](https://www.sbert.net/) |
+| Embeddings | `BAAI/bge-base-en-v1.5` via HuggingFace |
 | Web search | [Tavily](https://tavily.com/) |
 | UI | [Chainlit](https://chainlit.io/) |
-| Document loaders | LangChain (PyPDFLoader, TextLoader, UnstructuredMarkdownLoader) |
-| Testing | pytest · pytest-asyncio · unittest.mock |
+| Guardrails | [Presidio](https://microsoft.github.io/presidio/) · LLM safety check |
+| Observability | [Langfuse](https://langfuse.com) |
+| Evals | [DeepEval](https://deepeval.com) |
+| Infrastructure | Terraform · AWS ECS Fargate · Docker |
+| CI | GitHub Actions · ruff · pyright · pytest · pip-audit · Dependabot |
 
 ---
 
@@ -104,7 +171,6 @@ Streamed answer with [source, page N]
 git clone https://github.com/Alex-Resch/langgraph-rag-agent.git
 cd langgraph-rag-agent
 uv sync
-source .venv/bin/activate
 ```
 
 ### 2. Configure environment
@@ -113,57 +179,39 @@ source .venv/bin/activate
 cp .env.example .env
 ```
 
-Open `.env` and fill in your keys:
+Fill in your keys in `.env`:
 
 ```env
-GOOGLE_API_KEY=...        # Gemini 2.5 Flash
-GROQ_API_KEY=...          # Llama 3.3 70b via Groq
-TAVILY_API_KEY=...        # Web search fallback
+GEMINI_API_KEY=...        # https://aistudio.google.com/apikey
+TAVILY_API_KEY=...        # https://app.tavily.com
+# Optional – tracing is disabled without these:
+LANGFUSE_PUBLIC_KEY=...
+LANGFUSE_SECRET_KEY=...
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-All three services have a free tier that you can use for testing 
-without providing payment information:
-- **Groq** — https://console.groq.com
-- **Google AI Studio** — https://aistudio.google.com/apikey
-- **Tavily** — https://app.tavily.com
+All services have a free tier that works without payment information.
 
 ### 3. Run
 
 ```bash
-chainlit run main.py -w
+uv run chainlit run main.py -w
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ---
 
-## Usage
-
-1. Select a model from the settings panel (Gemini 2.5 Flash or Llama 3.3 70b)
-2. Optionally upload one or more PDF, TXT, or Markdown files via the attachment button
-3. Ask your question — the agent will search your documents first and fall back to the web if needed
-4. Answers citing documents include `[filename, page N]` references
-
----
-
 ## Development & Testing
 
-This project uses `uv` for dependency management and a `Makefile` for common tasks:
-
 ```bash
-make test       # Run pytest
-make lint       # Run ruff formatting and linting
-make typecheck  # Run pyright typechecking
-make all        # Run lint, typecheck, and test
+uv run ruff check . && uv run ruff format --check .   # lint + format
+uv run pyright                                        # type check
+uv run pytest                                         # 48 unit tests, no API calls
+uv run pytest evals -s                                # evals, needs API keys
 ```
 
-The test suite covers:
-
-- **`test_tools.py`** — document loader dispatch, chunking, vectorstore interaction, similarity threshold logic, web search error handling
-- **`test_nodes.py`** — system message injection, model propagation, conversation history forwarding, search/fallback routing
-- **`test_graph.py`** — graph compilation, node presence, instance isolation, end-to-end `ainvoke` with mocked dependencies
-
-All async tests run automatically via `asyncio_mode = auto`.
+The CI workflow runs all of these checks except the evals on every push to `main` and every pull request, plus `pip-audit` and `terraform validate`. Dependabot updates dependencies and GitHub Actions monthly; all actions are pinned by commit SHA.
 
 ---
 
@@ -172,8 +220,11 @@ All async tests run automatically via `asyncio_mode = auto`.
 Key constants in `config.py`:
 
 | Constant | Default | Description |
-|---|---------|---|
-| `CHUNK_SIZE` | 500     | Max characters per document chunk |
-| `CHUNK_OVERLAP` | 50      | Overlap between consecutive chunks |
-| `SIMILARITY_THRESHOLD` | 0.5     | Minimum cosine similarity score for a chunk to be considered relevant |
-| `TAVILY_MAX_RESULTS` | 10      | Number of web results to retrieve |
+|---|---|---|
+| `DEFAULT_MODEL` | `gemini/gemini-2.5-flash` | Agent model |
+| `GUARD_MODEL` | `gemini/gemini-2.5-flash-lite` | Model for the safety check |
+| `EMBEDDING_MODEL` | `BAAI/bge-base-en-v1.5` | Embedding model for the vectorstore |
+| `CHUNK_SIZE` | 500 | Max characters per document chunk |
+| `CHUNK_OVERLAP` | 50 | Overlap between consecutive chunks |
+| `SIMILARITY_THRESHOLD` | 0.2 | Minimum relevance score for a chunk to be returned |
+| `TAVILY_MAX_RESULTS` | 10 | Number of web results to retrieve |

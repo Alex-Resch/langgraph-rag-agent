@@ -19,4 +19,5 @@ COPY --chown=user . .
 
 EXPOSE 7860
 
-CMD ["uv", "run", "--no-dev", "chainlit", "run", "main.py", "--host", "0.0.0.0", "--port", "7860", "--headless"]
+# The environment is complete after the build, so skip the sync check on every start.
+CMD ["uv", "run", "--no-sync", "chainlit", "run", "main.py", "--host", "0.0.0.0", "--port", "7860", "--headless"]

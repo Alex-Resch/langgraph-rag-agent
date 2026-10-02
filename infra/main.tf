@@ -145,6 +145,12 @@ resource "aws_lb_target_group" "app" {
     path    = "/"
     matcher = "200"
   }
+
+  # Chainlit keeps the chat session in memory, so a browser must stay on one container.
+  stickiness {
+    type    = "lb_cookie"
+    enabled = true
+  }
 }
 
 resource "aws_lb_listener" "http" {

@@ -41,6 +41,8 @@ async def test_graph_runs_both_nodes():
 
     from langchain_core.messages import AIMessage, HumanMessage
 
+    from agent.guardrails import SafetyVerdict
+
     mock_step = MagicMock()
     mock_step.__aenter__ = AsyncMock(return_value=None)
     mock_step.__aexit__ = AsyncMock(return_value=None)
@@ -48,7 +50,13 @@ async def test_graph_runs_both_nodes():
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="final answer"))
 
-    with patch("agent.nodes.ChatLiteLLM") as MockLLM:
+    with (
+        patch("agent.nodes.ChatLiteLLM") as MockLLM,
+        patch(
+            "agent.guardrails.check_safety",
+            AsyncMock(return_value=SafetyVerdict(unsafe=False, reason="ok")),
+        ),
+    ):
         mock_llm_instance = MagicMock()
         mock_llm_with_tools = MagicMock()
         mock_llm_with_tools.ainvoke = AsyncMock(

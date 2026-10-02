@@ -214,3 +214,11 @@ chainlit.md
 # DeepEval (lokale Ergebnisse/Cache)
 .deepeval/
 /.claude/launch.json
+
+# Terraform (state can contain secrets)
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.DS_Store

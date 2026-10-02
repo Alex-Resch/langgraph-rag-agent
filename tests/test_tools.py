@@ -97,6 +97,34 @@ async def test_process_document_returns_chunk_count():
 
 
 @pytest.mark.asyncio
+async def test_process_document_uses_uploaded_filename_as_source():
+    """Each stored page should cite the uploaded name, not Chainlit's temp path."""
+    from agent.tools import process_document
+
+    element = MockElement(name="report.pdf", path="/tmp/upload-123.pdf")
+    pages = [
+        Document(
+            page_content="first page", metadata={"source": element.path, "page": 0}
+        ),
+        Document(
+            page_content="second page", metadata={"source": element.path, "page": 1}
+        ),
+    ]
+    mock_loader = MagicMock()
+    mock_loader.load.return_value = pages
+    mock_vectorstore = MagicMock()
+
+    with patch("agent.tools.get_document_loader", return_value=mock_loader):
+        await process_document(element, mock_vectorstore)
+
+    added_chunks = mock_vectorstore.add_documents.call_args.args[0]
+    assert len(added_chunks) == 2
+    assert all(chunk.metadata["source"] == element.name for chunk in added_chunks)
+    assert all(chunk.metadata["source"] != element.path for chunk in added_chunks)
+    assert [chunk.metadata["page"] for chunk in added_chunks] == [0, 1]
+
+
+@pytest.mark.asyncio
 async def test_process_document_adds_chunks_to_vectorstore():
     """Documents larger than CHUNK_SIZE should be split into multiple chunks."""
     from agent.tools import process_document

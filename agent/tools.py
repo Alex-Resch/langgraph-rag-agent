@@ -30,6 +30,8 @@ def get_document_loader(element: Element):
 async def process_document(element: Element, vectorstore: VectorStore) -> str:
     loader = get_document_loader(element)
     pages = loader.load()
+    for page in pages:
+        page.metadata["source"] = element.name
     intro_text = "\n".join([page.page_content for page in pages[:2]])
     chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP

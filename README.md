@@ -227,4 +227,4 @@ Key constants in `config.py`:
 | `CHUNK_SIZE` | 500 | Max characters per document chunk |
 | `CHUNK_OVERLAP` | 50 | Overlap between consecutive chunks |
 | `SIMILARITY_THRESHOLD` | 0.2 | Minimum relevance score for a chunk to be returned |
-| `TAVILY_MAX_RESULTS` | 10 | Number of web results to retrieve |
+| `TAVILY_MAX_RESULTS` | 5 | Number of web results to retrieve |

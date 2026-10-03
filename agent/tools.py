@@ -40,12 +40,9 @@ async def process_document(element: Element, vectorstore: VectorStore) -> str:
     return intro_text
 
 
-@tool
-def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
-    """Search uploaded documents for relevant information."""
-    results = runtime.context.vectorstore.similarity_search_with_relevance_scores(
-        query, k=5
-    )
+def search_vectorstore(vectorstore: VectorStore, query: str) -> str:
+    """Return the most relevant chunks with file and page, shared by the agent and the MCP server."""
+    results = vectorstore.similarity_search_with_relevance_scores(query, k=5)
     relevant = [doc for doc, score in results if score >= SIMILARITY_THRESHOLD]
 
     if not relevant:
@@ -59,6 +56,12 @@ def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
         output.append(f"{ref}\n{doc.page_content}")
 
     return "Found in documents:\n\n" + "\n\n".join(output)
+
+
+@tool
+def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
+    """Search uploaded documents for relevant information."""
+    return search_vectorstore(runtime.context.vectorstore, query)
 
 
 @tool

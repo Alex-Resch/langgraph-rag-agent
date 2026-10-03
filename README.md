@@ -31,6 +31,7 @@ Beyond the agent itself, the project covers what it takes to run an LLM app in p
 - **Evals** — RAG quality and guardrail detection are measured with DeepEval on every relevant pull request
 - **Infrastructure as code** — Terraform for AWS ECS Fargate, deployed by GitHub Actions without stored AWS keys (OIDC)
 - **Streaming** — token-by-token output in the Chainlit UI
+- **MCP server** — the same document search as a knowledge base for Claude Code and other MCP clients, served over Streamable HTTP
 
 ---
 
@@ -114,6 +115,29 @@ The evals workflow runs on every pull request that touches the agent, the config
 
 ---
 
+## MCP Server
+
+`mcp_server/` makes the document search available to any [MCP](https://modelcontextprotocol.io) client, for example Claude Code. It reuses the agent's retrieval code but has its own knowledge base on disk, so documents are ingested once instead of per chat.
+
+| Tool | Returns |
+|---|---|
+| `search_documents(query)` | the most relevant passages with file name and page |
+| `list_documents()` | the files in the knowledge base |
+
+The server calls no LLM, so it needs no API keys.
+
+```bash
+uv run python -m mcp_server.ingest path/to/documents   # rebuild the knowledge base from a folder (PDF, TXT, MD)
+uv run python -m mcp_server.server                     # serve it at http://127.0.0.1:8001/mcp
+claude mcp add --transport http knowledge-base http://127.0.0.1:8001/mcp
+```
+
+Run the ingest command again whenever documents change: it rebuilds the knowledge base from scratch, so removed files disappear from the search. Restart the server afterwards.
+
+**In production** a knowledge base server would also need what this demo leaves out on purpose: authentication (MCP supports OAuth), a deployment as a container, and a scheduled ingest from the real source, such as Confluence or SharePoint, instead of a local folder. The server only listens on `127.0.0.1` for that reason.
+
+---
+
 ## Deployment on AWS
 
 `infra/` contains Terraform for a complete AWS setup in `eu-central-1`:
@@ -156,6 +180,7 @@ The setup has been deployed, tested end to end and destroyed again — it is mea
 | Web search | [Tavily](https://tavily.com/) |
 | UI | [Chainlit](https://chainlit.io/) |
 | Guardrails | [Presidio](https://microsoft.github.io/presidio/) · LLM safety check |
+| MCP | [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) (FastMCP, Streamable HTTP) |
 | Observability | [Langfuse](https://langfuse.com) |
 | Evals | [DeepEval](https://deepeval.com) |
 | Infrastructure | Terraform · AWS ECS Fargate · Docker |
@@ -207,7 +232,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ```bash
 uv run ruff check . && uv run ruff format --check .   # lint + format
 uv run pyright                                        # type check
-uv run pytest                                         # 48 unit tests, no API calls
+uv run pytest                                         # 54 unit tests, no API calls
 uv run pytest evals -s                                # evals, needs API keys
 ```
 

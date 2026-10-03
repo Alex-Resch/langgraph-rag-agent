@@ -222,3 +222,6 @@ infra/.terraform/
 *.tfvars
 !*.tfvars.example
 .DS_Store
+
+# Knowledge base of the MCP server (built by mcp_server.ingest)
+data/

@@ -24,7 +24,7 @@ from litellm.exceptions import (
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
 from agent.guardrails import mask_pii
-from agent.handoff import forward_to_team, nothing_found
+from agent.handoff import answered_from_documents, forward_to_team
 from agent.prompts import upload_notice
 from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, docs_only
@@ -177,7 +177,7 @@ async def on_message(message: cl.Message):
 
     answer = cl.Message(content="")
     error_msg = None
-    search_results: list[str] = []
+    searched_documents = False
     # One handler per message, so last_trace_id belongs to this answer.
     handler = CallbackHandler()
     try:
@@ -207,8 +207,7 @@ async def on_message(message: cl.Message):
                         event["event"] == "on_tool_end"
                         and event["name"] == "search_documents"
                     ):
-                        output = event["data"]["output"]
-                        search_results.append(str(getattr(output, "content", output)))
+                        searched_documents = True
     except RateLimitError as e:
         print("ratelimit_e: ", e)
         error_msg = (
@@ -236,5 +235,9 @@ async def on_message(message: cl.Message):
     history.append(AIMessage(answer.content))
     cl.user_session.set("history", history)
 
-    if docs_only() and nothing_found(search_results):
+    if (
+        docs_only()
+        and searched_documents
+        and not await answered_from_documents(message.content, answer.content)
+    ):
         await handle_unanswered(message.content, history, handler.last_trace_id)

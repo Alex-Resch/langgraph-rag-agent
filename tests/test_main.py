@@ -525,15 +525,25 @@ def make_search_end_event(result="NO_DOCUMENTS_FOUND"):
     }
 
 
+FOUND = "Found in documents:\n\n[faq.pdf]\nWe ship within Germany."
+
+
 async def run_turn_with_search(
-    search_result, forwarded=True, question="Do you ship to Austria?"
+    search_result=FOUND,
+    forwarded=True,
+    question="Do you ship to Austria?",
+    answered=False,
+    searched=True,
 ):
-    """Run on_message for a question whose document search returns search_result.
-    Returns the forward_to_team mock, the Message class mock and the Langfuse client mock."""
+    """Run on_message for a question whose document search returns search_result
+    and whose answer the check rates as answered or not.
+    Returns the forward_to_team mock, the Message class mock, the Langfuse client
+    mock and the answer check mock."""
     from main import on_message
 
     async def stream(*args, **kwargs):
-        yield make_search_end_event(search_result)
+        if searched:
+            yield make_search_end_event(search_result)
         yield make_stream_event("This is not in the documents.")
 
     mock_graph = MagicMock()
@@ -549,6 +559,9 @@ async def run_turn_with_search(
         ) as mock_forward,
         patch("main.CallbackHandler", return_value=handler),
         patch("main.get_client") as mock_client,
+        patch(
+            "main.answered_from_documents", AsyncMock(return_value=answered)
+        ) as mock_check,
     ):
         mock_session.get.side_effect = lambda key, default=None: {
             "model": "groq/llama-3.3-70b-versatile",
@@ -558,7 +571,7 @@ async def run_turn_with_search(
 
         await on_message(make_mock_message(question))
 
-    return mock_forward, mock_message, mock_client
+    return mock_forward, mock_message, mock_client, mock_check
 
 
 def told_user_about_handoff(mock_message) -> bool:
@@ -571,7 +584,7 @@ async def test_on_message_forwards_unanswered_question_in_docs_only_mode(monkeyp
     and the user is told so."""
     monkeypatch.setenv("DOCS_ONLY", "true")
 
-    mock_forward, mock_message, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+    mock_forward, mock_message, _, _ = await run_turn_with_search()
 
     mock_forward.assert_awaited_once()
     assert mock_forward.call_args[0][0] == "Do you ship to Austria?"
@@ -583,7 +596,7 @@ async def test_on_message_marks_unanswered_question_in_langfuse(monkeypatch):
     """Unanswered questions get an 'unanswered' score, so they can be filtered."""
     monkeypatch.setenv("DOCS_ONLY", "true")
 
-    _, _, mock_client = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+    _, _, mock_client, _ = await run_turn_with_search()
 
     score = mock_client.return_value.create_score.call_args.kwargs
     assert score["trace_id"] == "trace-1"
@@ -595,8 +608,8 @@ async def test_on_message_masks_personal_data_in_the_unanswered_score(monkeypatc
     """The score comment leaves the app like a trace, so it must be masked too."""
     monkeypatch.setenv("DOCS_ONLY", "true")
 
-    _, _, mock_client = await run_turn_with_search(
-        "NO_DOCUMENTS_FOUND", question="Please email me at max@example.com"
+    _, _, mock_client, _ = await run_turn_with_search(
+        question="Please email me at max@example.com"
     )
 
     comment = mock_client.return_value.create_score.call_args.kwargs["comment"]
@@ -609,9 +622,7 @@ async def test_on_message_does_not_claim_handoff_when_no_channel_received_it(
 ):
     monkeypatch.setenv("DOCS_ONLY", "true")
 
-    _, mock_message, _ = await run_turn_with_search(
-        "NO_DOCUMENTS_FOUND", forwarded=False
-    )
+    _, mock_message, _, _ = await run_turn_with_search(forwarded=False)
 
     assert not told_user_about_handoff(mock_message)
 
@@ -620,12 +631,35 @@ async def test_on_message_does_not_claim_handoff_when_no_channel_received_it(
 async def test_on_message_does_not_forward_when_documents_answer_it(monkeypatch):
     monkeypatch.setenv("DOCS_ONLY", "true")
 
-    mock_forward, _, mock_client = await run_turn_with_search(
-        "Found in documents:\n\n[faq.pdf]\nWe ship to Austria."
-    )
+    mock_forward, _, mock_client, _ = await run_turn_with_search(answered=True)
 
     mock_forward.assert_not_awaited()
     mock_client.return_value.create_score.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_on_message_forwards_when_search_found_chunks_but_not_the_answer(
+    monkeypatch,
+):
+    """With uploaded documents the search almost always returns some chunks, so
+    whether the question was answered is decided by checking the answer."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    mock_forward, _, _, mock_check = await run_turn_with_search(FOUND)
+
+    mock_check.assert_awaited_once_with("Do you ship to Austria?", "streamed answer")
+    mock_forward.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_on_message_does_not_check_answers_without_a_search(monkeypatch):
+    """Greetings never search the documents, so they are never forwarded."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    mock_forward, _, _, mock_check = await run_turn_with_search(searched=False)
+
+    mock_check.assert_not_awaited()
+    mock_forward.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -633,8 +667,9 @@ async def test_on_message_does_not_forward_outside_docs_only_mode(monkeypatch):
     """By default the bot falls back to the web, so nothing is forwarded."""
     monkeypatch.delenv("DOCS_ONLY", raising=False)
 
-    mock_forward, _, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+    mock_forward, _, _, mock_check = await run_turn_with_search()
 
+    mock_check.assert_not_awaited()
     mock_forward.assert_not_awaited()
 
 

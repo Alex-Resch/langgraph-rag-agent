@@ -55,14 +55,17 @@ def test_get_document_loader_txt():
         MockLoader.assert_called_once_with(element.path)
 
 
-def test_get_document_loader_md():
-    """Markdown files (non text/plain MIME) should use UnstructuredMarkdownLoader."""
+def test_get_document_loader_md_loads_text(tmp_path):
+    """Markdown uploads must load without extra packages and keep their text."""
     from agent.tools import get_document_loader
 
-    element = MockElement(mime="text/markdown", name="readme.md")
-    with patch("agent.tools.UnstructuredMarkdownLoader") as MockLoader:
-        get_document_loader(element)
-        MockLoader.assert_called_once_with(element.path)
+    path = tmp_path / "readme.md"
+    path.write_text("# Returns\n\nReturns are possible within 30 days.\n")
+    element = MockElement(mime="text/markdown", name="readme.md", path=str(path))
+
+    pages = get_document_loader(element).load()
+
+    assert "Returns are possible within 30 days." in pages[0].page_content
 
 
 def test_get_document_loader_unsupported_raises():

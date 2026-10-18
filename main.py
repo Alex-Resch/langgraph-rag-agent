@@ -1,3 +1,5 @@
+import hmac
+import os
 from functools import cache
 from typing import cast
 
@@ -28,6 +30,26 @@ from agent.tools import process_document
 from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, docs_only
 
 load_dotenv()
+
+
+async def check_login(username: str, password: str) -> cl.User | None:
+    """Accept the password from CHAT_PASSWORD and, if set, only the user name from
+    CHAT_USERNAME."""
+    expected_password = os.getenv("CHAT_PASSWORD", "")
+    expected_user = os.getenv("CHAT_USERNAME")
+    if not expected_password or not hmac.compare_digest(
+        password.encode(), expected_password.encode()
+    ):
+        return None
+    if expected_user and not hmac.compare_digest(
+        username.encode(), expected_user.encode()
+    ):
+        return None
+    return cl.User(identifier=username)
+
+
+if os.getenv("CHAT_PASSWORD"):
+    cl.password_auth_callback(check_login)
 
 
 @cache
@@ -66,7 +88,7 @@ async def handle_unanswered(question: str, history: list, trace_id: str | None):
             name="unanswered",
             value=1,
             data_type="BOOLEAN",
-            comment=question,
+            comment=mask_pii(question),
         )
     if await forward_to_team(question, history):
         await cl.Message(

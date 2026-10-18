@@ -1,9 +1,5 @@
 from chainlit.element import Element
-from langchain_community.document_loaders import (
-    PyPDFLoader,
-    TextLoader,
-    UnstructuredMarkdownLoader,
-)
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.tools import tool
 from langchain_core.vectorstores import VectorStore
@@ -22,10 +18,8 @@ def get_document_loader(element: Element):
         raise ValueError(f"File path is None for '{element.name}'")
     if element.mime == "application/pdf":
         return PyPDFLoader(element.path)
-    elif element.mime == "text/plain":
+    elif element.mime == "text/plain" or element.name.endswith(".md"):
         return TextLoader(element.path)
-    elif element.name.endswith(".md"):
-        return UnstructuredMarkdownLoader(element.path)
     raise ValueError(f"Unsupported file type: '{element.name}'")
 
 

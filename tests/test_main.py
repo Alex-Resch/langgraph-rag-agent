@@ -525,7 +525,9 @@ def make_search_end_event(result="NO_DOCUMENTS_FOUND"):
     }
 
 
-async def run_turn_with_search(search_result, forwarded=True):
+async def run_turn_with_search(
+    search_result, forwarded=True, question="Do you ship to Austria?"
+):
     """Run on_message for a question whose document search returns search_result.
     Returns the forward_to_team mock, the Message class mock and the Langfuse client mock."""
     from main import on_message
@@ -554,7 +556,7 @@ async def run_turn_with_search(search_result, forwarded=True):
             "graph": mock_graph,
         }.get(key, default)
 
-        await on_message(make_mock_message("Do you ship to Austria?"))
+        await on_message(make_mock_message(question))
 
     return mock_forward, mock_message, mock_client
 
@@ -586,6 +588,19 @@ async def test_on_message_marks_unanswered_question_in_langfuse(monkeypatch):
     score = mock_client.return_value.create_score.call_args.kwargs
     assert score["trace_id"] == "trace-1"
     assert score["name"] == "unanswered"
+
+
+@pytest.mark.asyncio
+async def test_on_message_masks_personal_data_in_the_unanswered_score(monkeypatch):
+    """The score comment leaves the app like a trace, so it must be masked too."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    _, _, mock_client = await run_turn_with_search(
+        "NO_DOCUMENTS_FOUND", question="Please email me at max@example.com"
+    )
+
+    comment = mock_client.return_value.create_score.call_args.kwargs["comment"]
+    assert "max@example.com" not in comment
 
 
 @pytest.mark.asyncio
@@ -621,3 +636,68 @@ async def test_on_message_does_not_forward_outside_docs_only_mode(monkeypatch):
     mock_forward, _, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
 
     mock_forward.assert_not_awaited()
+
+
+@pytest.fixture
+def login_env(monkeypatch):
+    """Configure a password and no fixed user name."""
+    monkeypatch.setenv("CHAT_PASSWORD", "s3cret")
+    monkeypatch.delenv("CHAT_USERNAME", raising=False)
+
+
+@pytest.mark.asyncio
+async def test_check_login_accepts_the_configured_password(login_env):
+    from main import check_login
+
+    user = await check_login("anna", "s3cret")
+
+    assert user is not None and user.identifier == "anna"
+
+
+@pytest.mark.asyncio
+async def test_check_login_rejects_a_wrong_password(login_env):
+    from main import check_login
+
+    assert await check_login("anna", "guess") is None
+
+
+@pytest.mark.asyncio
+async def test_check_login_rejects_another_user_name_if_one_is_set(
+    login_env, monkeypatch
+):
+    from main import check_login
+
+    monkeypatch.setenv("CHAT_USERNAME", "team")
+
+    assert await check_login("anna", "s3cret") is None
+    assert await check_login("team", "s3cret") is not None
+
+
+@pytest.mark.asyncio
+async def test_check_login_never_accepts_an_empty_password(monkeypatch):
+    from main import check_login
+
+    monkeypatch.setenv("CHAT_PASSWORD", "")
+
+    assert await check_login("anna", "") is None
+
+
+def test_login_is_only_required_when_a_password_is_set(monkeypatch):
+    """Without CHAT_PASSWORD the app stays public, with it Chainlit asks for a login."""
+    import importlib
+
+    from chainlit.config import config
+
+    import main
+
+    try:
+        monkeypatch.delenv("CHAT_PASSWORD", raising=False)
+        config.code.password_auth_callback = None
+        importlib.reload(main)
+        assert config.code.password_auth_callback is None
+
+        monkeypatch.setenv("CHAT_PASSWORD", "s3cret")
+        importlib.reload(main)
+        assert config.code.password_auth_callback is not None
+    finally:
+        config.code.password_auth_callback = None

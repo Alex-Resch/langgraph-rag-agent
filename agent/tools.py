@@ -14,6 +14,8 @@ from tavily import UsageLimitExceededError
 from agent.agent_state import AgentContext
 from config import CHUNK_OVERLAP, CHUNK_SIZE, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
+NO_DOCUMENTS_FOUND = "NO_DOCUMENTS_FOUND"
+
 
 def get_document_loader(element: Element):
     if element.path is None:
@@ -46,7 +48,7 @@ def search_vectorstore(vectorstore: VectorStore, query: str) -> str:
     relevant = [doc for doc, score in results if score >= SIMILARITY_THRESHOLD]
 
     if not relevant:
-        return "NO_DOCUMENTS_FOUND"
+        return NO_DOCUMENTS_FOUND
 
     output = []
     for doc in relevant:

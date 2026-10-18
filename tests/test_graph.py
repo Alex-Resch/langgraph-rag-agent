@@ -77,3 +77,16 @@ async def test_graph_runs_both_nodes():
         isinstance(m, AIMessage) and m.content == "final answer"
         for m in result["messages"]
     )
+
+
+def test_graph_tools_node_has_only_document_search_in_docs_only_mode(monkeypatch):
+    """In docs-only mode the tools node must not be able to run the web search."""
+    from typing import cast
+
+    from langgraph.prebuilt import ToolNode
+
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    tool_node = cast(ToolNode, build_graph().nodes["tools"].bound)
+
+    assert list(tool_node.tools_by_name) == ["search_documents"]

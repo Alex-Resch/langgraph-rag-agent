@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from chainlit.context import context_var
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from litellm.exceptions import BadRequestError, RateLimitError, ServiceUnavailableError
 
 from main import on_message
@@ -513,3 +513,111 @@ async def test_on_message_appends_system_message_to_history_after_upload():
     assert any(
         isinstance(m, SystemMessage) and "paper.pdf" in m.content for m in messages
     )
+
+
+def make_search_end_event(result="NO_DOCUMENTS_FOUND"):
+    """Return the on_tool_end event of a document search as yielded by astream_events."""
+    return {
+        "event": "on_tool_end",
+        "name": "search_documents",
+        "metadata": {"langgraph_node": "tools"},
+        "data": {"output": ToolMessage(content=result, tool_call_id="1")},
+    }
+
+
+async def run_turn_with_search(search_result, forwarded=True):
+    """Run on_message for a question whose document search returns search_result.
+    Returns the forward_to_team mock, the Message class mock and the Langfuse client mock."""
+    from main import on_message
+
+    async def stream(*args, **kwargs):
+        yield make_search_end_event(search_result)
+        yield make_stream_event("This is not in the documents.")
+
+    mock_graph = MagicMock()
+    mock_graph.astream_events = stream
+    handler = MagicMock()
+    handler.last_trace_id = "trace-1"
+
+    with (
+        patch("main.cl.user_session") as mock_session,
+        patch("main.cl.Message", return_value=make_mock_answer()) as mock_message,
+        patch(
+            "main.forward_to_team", AsyncMock(return_value=forwarded)
+        ) as mock_forward,
+        patch("main.CallbackHandler", return_value=handler),
+        patch("main.get_client") as mock_client,
+    ):
+        mock_session.get.side_effect = lambda key, default=None: {
+            "model": "groq/llama-3.3-70b-versatile",
+            "history": [],
+            "graph": mock_graph,
+        }.get(key, default)
+
+        await on_message(make_mock_message("Do you ship to Austria?"))
+
+    return mock_forward, mock_message, mock_client
+
+
+def told_user_about_handoff(mock_message) -> bool:
+    return any("forwarded" in str(call) for call in mock_message.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_on_message_forwards_unanswered_question_in_docs_only_mode(monkeypatch):
+    """In docs-only mode a question the documents cannot answer goes to the team,
+    and the user is told so."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    mock_forward, mock_message, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+
+    mock_forward.assert_awaited_once()
+    assert mock_forward.call_args[0][0] == "Do you ship to Austria?"
+    assert told_user_about_handoff(mock_message)
+
+
+@pytest.mark.asyncio
+async def test_on_message_marks_unanswered_question_in_langfuse(monkeypatch):
+    """Unanswered questions get an 'unanswered' score, so they can be filtered."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    _, _, mock_client = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+
+    score = mock_client.return_value.create_score.call_args.kwargs
+    assert score["trace_id"] == "trace-1"
+    assert score["name"] == "unanswered"
+
+
+@pytest.mark.asyncio
+async def test_on_message_does_not_claim_handoff_when_no_channel_received_it(
+    monkeypatch,
+):
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    _, mock_message, _ = await run_turn_with_search(
+        "NO_DOCUMENTS_FOUND", forwarded=False
+    )
+
+    assert not told_user_about_handoff(mock_message)
+
+
+@pytest.mark.asyncio
+async def test_on_message_does_not_forward_when_documents_answer_it(monkeypatch):
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    mock_forward, _, mock_client = await run_turn_with_search(
+        "Found in documents:\n\n[faq.pdf]\nWe ship to Austria."
+    )
+
+    mock_forward.assert_not_awaited()
+    mock_client.return_value.create_score.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_on_message_does_not_forward_outside_docs_only_mode(monkeypatch):
+    """By default the bot falls back to the web, so nothing is forwarded."""
+    monkeypatch.delenv("DOCS_ONLY", raising=False)
+
+    mock_forward, _, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
+
+    mock_forward.assert_not_awaited()

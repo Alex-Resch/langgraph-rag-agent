@@ -39,7 +39,8 @@ from agent.agent_state import AgentContext
 from agent.graph import build_graph
 from agent.prompts import upload_notice
 from agent.tools import process_document
-from config import DEFAULT_MODEL, EMBEDDING_MODEL
+from config import DEFAULT_MODEL, EMBEDDING_MODEL, docs_only
+from evals.report import render_report
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -174,6 +175,44 @@ def send_scores_to_langfuse(results, trace_ids: dict[str, str]) -> None:
     langfuse.flush()
 
 
+def write_report(results, test_cases: dict[str | None, LLMTestCase]) -> Path:
+    """Write the results in testset order as an HTML test report (evals/report.html)."""
+    testset = {f"{case['type']}: {case['input']}": case for case in TESTSET["cases"]}
+    order = list(testset)
+    rows = []
+    for result in sorted(results, key=lambda r: order.index(r.name)):
+        case = test_cases[result.name]
+        chunks = [c for c in case.retrieval_context or [] if isinstance(c, str)]
+        rows.append(
+            {
+                "type": result.name.split(":")[0],
+                "input": case.input,
+                "expected": case.expected_output,
+                "answer": case.actual_output,
+                "pages": testset[result.name]["pages"],
+                "found_pages": [
+                    int(page) for c in chunks for page in re.findall(r"page (\d+)\]", c)
+                ],
+                "passed": result.success,
+                "reason": "; ".join(
+                    f"{m.name}: {m.reason}"
+                    for m in result.metrics_data or []
+                    if not m.success
+                ),
+            }
+        )
+    path = EVALS_DIR / "report.html"
+    path.write_text(
+        render_report(
+            rows,
+            model=DEFAULT_MODEL,
+            docs_only=docs_only(),
+            min_pass_rate=MIN_PASS_RATE,
+        )
+    )
+    return path
+
+
 def test_rag_quality(vectorstore, metrics):
     """Fail only if fewer than MIN_PASS_RATE of all cases pass, since single
     LLM-judged cases can fluctuate between runs."""
@@ -205,6 +244,8 @@ def test_rag_quality(vectorstore, metrics):
         ).test_results
 
     send_scores_to_langfuse(results, trace_ids)
+    test_cases = {case.name: case for cases in groups.values() for case in cases}
+    print(f"Test report: {write_report(results, test_cases)}")
 
     failed = [r for r in results if not r.success]
     pass_rate = 1 - len(failed) / len(results)

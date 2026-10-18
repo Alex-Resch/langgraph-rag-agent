@@ -3,7 +3,7 @@ from langgraph.prebuilt import ToolNode
 
 from agent.agent_state import AgentContext, AgentState
 from agent.guardrails import input_guard, route_after_input_guard
-from agent.nodes import call_llm, should_continue, tools
+from agent.nodes import active_tools, call_llm, should_continue
 
 
 def build_graph():
@@ -11,7 +11,7 @@ def build_graph():
 
     graph.add_node("input_guard", input_guard)
     graph.add_node("call_llm", call_llm)
-    graph.add_node("tools", ToolNode(tools))
+    graph.add_node("tools", ToolNode(active_tools()))
 
     graph.add_edge(START, "input_guard")
     graph.add_conditional_edges(

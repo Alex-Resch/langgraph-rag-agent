@@ -132,3 +132,59 @@ def test_should_continue_returns_end_for_plain_ai_message():
     state = make_state()
     state["messages"] = [AIMessage(content="Direct answer, no tools needed.")]
     assert should_continue(state) == "end"
+
+
+def make_mock_llm():
+    """Return a ChatLiteLLM mock whose tool-bound model answers without tool calls."""
+    mock_llm = MagicMock()
+    mock_llm_with_tools = MagicMock()
+    mock_llm_with_tools.ainvoke = AsyncMock(
+        return_value=make_ai_message_without_tool_calls()
+    )
+    mock_llm.bind_tools.return_value = mock_llm_with_tools
+    return mock_llm
+
+
+@pytest.mark.asyncio
+async def test_call_llm_binds_web_search_by_default(monkeypatch):
+    """Without DOCS_ONLY the model can fall back to the web search."""
+    from agent.nodes import call_llm
+
+    monkeypatch.delenv("DOCS_ONLY", raising=False)
+    mock_llm = make_mock_llm()
+
+    with patch("agent.nodes.ChatLiteLLM", return_value=mock_llm):
+        await call_llm(make_state())
+
+    bound = mock_llm.bind_tools.call_args[0][0]
+    assert [t.name for t in bound] == ["search_documents", "web_search_fallback"]
+
+
+@pytest.mark.asyncio
+async def test_call_llm_binds_only_document_search_in_docs_only_mode(monkeypatch):
+    """With DOCS_ONLY=true the model must not get the web search tool."""
+    from agent.nodes import call_llm
+
+    monkeypatch.setenv("DOCS_ONLY", "true")
+    mock_llm = make_mock_llm()
+
+    with patch("agent.nodes.ChatLiteLLM", return_value=mock_llm):
+        await call_llm(make_state())
+
+    bound = mock_llm.bind_tools.call_args[0][0]
+    assert [t.name for t in bound] == ["search_documents"]
+
+
+@pytest.mark.asyncio
+async def test_call_llm_docs_only_prompt_does_not_offer_web_search(monkeypatch):
+    """The docs-only prompt must not tell the model to use a tool it does not have."""
+    from agent.nodes import call_llm
+
+    monkeypatch.setenv("DOCS_ONLY", "true")
+    mock_llm = make_mock_llm()
+
+    with patch("agent.nodes.ChatLiteLLM", return_value=mock_llm):
+        await call_llm(make_state())
+
+    prompt = mock_llm.bind_tools.return_value.ainvoke.call_args[0][0][0]
+    assert "web_search_fallback" not in prompt.content

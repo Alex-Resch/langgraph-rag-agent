@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.vectorstores import VectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_litellm import ChatLiteLLM
-from langfuse import Langfuse, propagate_attributes
+from langfuse import Langfuse, get_client, propagate_attributes
 from langfuse.langchain import CallbackHandler
 from langfuse.types import MaskOtelSpansParams, MaskOtelSpansResult, OtelSpanPatch
 from litellm.exceptions import (
@@ -22,9 +22,10 @@ from litellm.exceptions import (
 from agent.agent_state import AgentContext
 from agent.graph import build_graph
 from agent.guardrails import mask_pii
+from agent.handoff import forward_to_team, nothing_found
 from agent.prompts import upload_notice
 from agent.tools import process_document
-from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL
+from config import AVAILABLE_MODELS, DEFAULT_MODEL, EMBEDDING_MODEL, docs_only
 
 load_dotenv()
 
@@ -55,6 +56,23 @@ def mask_spans(*, params: MaskOtelSpansParams) -> MaskOtelSpansResult:
 # noinspection PyTypeChecker
 Langfuse(mask_otel_spans=mask_spans)
 langfuse_config = RunnableConfig(callbacks=[CallbackHandler()])
+
+
+async def handle_unanswered(question: str, history: list, trace_id: str | None):
+    """Mark the question as unanswered in Langfuse and forward it to the team."""
+    if trace_id:
+        get_client().create_score(
+            trace_id=trace_id,
+            name="unanswered",
+            value=1,
+            data_type="BOOLEAN",
+            comment=mask_pii(question),
+        )
+    if await forward_to_team(question, history):
+        await cl.Message(
+            content="📨 I couldn't find this in the documents, so I've forwarded "
+            "your question to the team."
+        ).send()
 
 
 @cl.on_chat_start
@@ -132,11 +150,14 @@ async def on_message(message: cl.Message):
                 return
 
     model = cl.user_session.get("model", DEFAULT_MODEL)
-    history = cl.user_session.get("history", [])
-    history.append(HumanMessage(content=message.content))  # type: ignore
+    history = cast(list, cl.user_session.get("history", []))
+    history.append(HumanMessage(content=message.content))
 
     answer = cl.Message(content="")
     error_msg = None
+    search_results: list[str] = []
+    # One handler per message, so last_trace_id belongs to this answer.
+    handler = CallbackHandler()
     try:
         graph = cl.user_session.get("graph")
         if graph:
@@ -145,7 +166,7 @@ async def on_message(message: cl.Message):
             ):
                 async for event in graph.astream_events(
                     {"messages": history, "model": model},
-                    config=langfuse_config,
+                    config=RunnableConfig(callbacks=[handler]),
                     context=AgentContext(vectorstore=vectorstore),
                     version="v2",
                 ):
@@ -160,6 +181,12 @@ async def on_message(message: cl.Message):
                         messages = event["data"]["output"]["messages"]
                         if messages and isinstance(messages[-1], AIMessage):
                             await answer.stream_token(messages[-1].text)
+                    elif (
+                        event["event"] == "on_tool_end"
+                        and event["name"] == "search_documents"
+                    ):
+                        output = event["data"]["output"]
+                        search_results.append(str(getattr(output, "content", output)))
     except RateLimitError as e:
         print("ratelimit_e: ", e)
         error_msg = (
@@ -184,5 +211,8 @@ async def on_message(message: cl.Message):
         return
 
     await answer.send()
-    history.append(AIMessage(answer.content))  # type: ignore
+    history.append(AIMessage(answer.content))
     cl.user_session.set("history", history)
+
+    if docs_only() and nothing_found(search_results):
+        await handle_unanswered(message.content, history, handler.last_trace_id)

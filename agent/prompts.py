@@ -3,8 +3,21 @@ from datetime import UTC, datetime
 from langchain_core.messages import SystemMessage
 
 
-def system_prompt() -> SystemMessage:
+def system_prompt(docs_only: bool = False) -> SystemMessage:
     """Instructions for the agent, including today's date and when to use which tool."""
+    if docs_only:
+        return SystemMessage(
+            content=(
+                f"You are a helpful assistant. Today's date is {datetime.now(UTC).strftime('%B %d, %Y')}. "
+                "You answer questions only from the uploaded documents.\n"
+                "- search_documents: for every question except greetings. Search before "
+                "answering, never ask the user for clarification first.\n"
+                "- If search_documents finds nothing relevant, say that the answer is not "
+                "in the documents. Never answer from general knowledge or the internet.\n"
+                "Only state facts that appear in the search results and name the source "
+                "after each fact, e.g. [report.pdf, page 2]."
+            )
+        )
     return SystemMessage(
         content=(
             f"You are a helpful assistant. Today's date is {datetime.now(UTC).strftime('%B %d, %Y')}. "

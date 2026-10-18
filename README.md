@@ -32,6 +32,7 @@ Beyond the agent itself, the project covers what it takes to run an LLM app in p
 - **Infrastructure as code** — Terraform for AWS ECS Fargate, deployed by GitHub Actions without stored AWS keys (OIDC)
 - **Streaming** — token-by-token output in the Chainlit UI
 - **MCP server** — the same document search as a knowledge base for Claude Code and other MCP clients, served over Streamable HTTP
+- **Docs-only mode with human handoff** — optionally answers only from the documents and forwards questions they cannot answer to Slack or email
 
 ---
 
@@ -97,6 +98,7 @@ The app sends every chat message and document summary to [Langfuse](https://lang
 - traces grouped by Chainlit session, with every LangGraph node, tool call and LLM generation
 - token usage (also while streaming) and costs per request
 - PII masked in all span attributes before export (`mask_otel_spans`)
+- in docs-only mode, questions the documents cannot answer get an `unanswered` score, so they can be filtered
 
 Eval runs are traced too, in a separate Langfuse environment, with each metric stored as a score on its trace.
 
@@ -232,7 +234,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ```bash
 uv run ruff check . && uv run ruff format --check .   # lint + format
 uv run pyright                                        # type check
-uv run pytest                                         # 54 unit tests, no API calls
+uv run pytest                                         # 70 unit tests, no API calls
 uv run pytest evals -s                                # evals, needs API keys
 ```
 
@@ -253,3 +255,11 @@ Key constants in `config.py`:
 | `CHUNK_OVERLAP` | 50 | Overlap between consecutive chunks |
 | `SIMILARITY_THRESHOLD` | 0.2 | Minimum relevance score for a chunk to be returned |
 | `TAVILY_MAX_RESULTS` | 5 | Number of web results to retrieve |
+
+Optional features, switched on with environment variables (all off by default):
+
+| Variable | Effect |
+|---|---|
+| `DOCS_ONLY=true` | Answer only from the uploaded documents, without web search. If nothing relevant is found, the bot says so |
+| `HANDOFF_SLACK_WEBHOOK_URL` | In docs-only mode, send unanswered questions with the chat so far to this Slack incoming webhook |
+| `HANDOFF_EMAIL_TO` | Same by email, via `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER` and `SMTP_PASSWORD` |

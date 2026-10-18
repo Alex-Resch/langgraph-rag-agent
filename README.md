@@ -253,7 +253,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ```bash
 uv run ruff check . && uv run ruff format --check .   # lint + format
 uv run pyright                                        # type check
-uv run pytest                                         # 75 unit tests, no API calls
+uv run pytest                                         # 81 unit tests, no API calls
 uv run pytest evals -s                                # evals, needs API keys
 ```
 

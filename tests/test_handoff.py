@@ -1,11 +1,11 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.error import URLError
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from agent.handoff import forward_to_team, nothing_found
+from agent.handoff import AnswerVerdict, answered_from_documents, forward_to_team
 
 HISTORY = [
     SystemMessage(content="The user just uploaded a File: 'faq.pdf'."),
@@ -28,17 +28,21 @@ def no_handoff_channels(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_nothing_found_when_every_search_found_nothing():
-    assert nothing_found(["NO_DOCUMENTS_FOUND", "NO_DOCUMENTS_FOUND"])
+@pytest.mark.asyncio
+async def test_answer_check_sends_question_and_answer_and_returns_the_verdict():
+    llm = MagicMock()
+    structured = llm.with_structured_output.return_value
+    structured.ainvoke = AsyncMock(return_value=AnswerVerdict(answered=False))
 
+    with patch("agent.handoff.ChatLiteLLM", return_value=llm):
+        answered = await answered_from_documents(
+            "Do you ship to Austria?", "This is not in the documents."
+        )
 
-def test_not_nothing_found_when_one_search_found_documents():
-    assert not nothing_found(["NO_DOCUMENTS_FOUND", "Found in documents:\n\n[faq.pdf]"])
-
-
-def test_not_nothing_found_without_any_search():
-    """Greetings never trigger a search, so they must not count as unanswered."""
-    assert not nothing_found([])
+    prompt = str(structured.ainvoke.call_args[0][0])
+    assert answered is False
+    assert "Do you ship to Austria?" in prompt
+    assert "This is not in the documents." in prompt
 
 
 @pytest.mark.asyncio

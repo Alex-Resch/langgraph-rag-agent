@@ -6,18 +6,37 @@ import smtplib
 from email.message import EmailMessage
 from urllib.request import Request, urlopen
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_litellm import ChatLiteLLM
+from pydantic import BaseModel, Field
 
-from agent.tools import NO_DOCUMENTS_FOUND
+from config import GUARD_MODEL
 
 logger = logging.getLogger(__name__)
 
 
-def nothing_found(search_results: list[str]) -> bool:
-    """True if the documents were searched and no search found anything."""
-    return bool(search_results) and all(
-        result == NO_DOCUMENTS_FOUND for result in search_results
+class AnswerVerdict(BaseModel):
+    answered: bool = Field(
+        description="True if the answer answers the question, False if it says "
+        "the information is not in the documents"
     )
+
+
+async def answered_from_documents(question: str, answer: str) -> bool:
+    """Let the small guard model decide whether the answer actually answers the
+    question. The search alone cannot tell: with uploaded documents it almost
+    always returns some chunks, even for unrelated questions."""
+    llm = ChatLiteLLM(model=GUARD_MODEL, temperature=0)
+    verdict = await llm.with_structured_output(AnswerVerdict).ainvoke(
+        [
+            SystemMessage(
+                content="Decide whether the assistant's answer answers the user's "
+                "question, or says that the information is not in the documents."
+            ),
+            HumanMessage(content=f"Question: {question}\n\nAnswer: {answer}"),
+        ]
+    )
+    return AnswerVerdict.model_validate(verdict).answered
 
 
 def format_chat(history: list) -> str:

@@ -66,7 +66,7 @@ async def handle_unanswered(question: str, history: list, trace_id: str | None):
             name="unanswered",
             value=1,
             data_type="BOOLEAN",
-            comment=question,
+            comment=mask_pii(question),
         )
     if await forward_to_team(question, history):
         await cl.Message(

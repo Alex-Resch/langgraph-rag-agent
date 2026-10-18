@@ -525,7 +525,9 @@ def make_search_end_event(result="NO_DOCUMENTS_FOUND"):
     }
 
 
-async def run_turn_with_search(search_result, forwarded=True):
+async def run_turn_with_search(
+    search_result, forwarded=True, question="Do you ship to Austria?"
+):
     """Run on_message for a question whose document search returns search_result.
     Returns the forward_to_team mock, the Message class mock and the Langfuse client mock."""
     from main import on_message
@@ -554,7 +556,7 @@ async def run_turn_with_search(search_result, forwarded=True):
             "graph": mock_graph,
         }.get(key, default)
 
-        await on_message(make_mock_message("Do you ship to Austria?"))
+        await on_message(make_mock_message(question))
 
     return mock_forward, mock_message, mock_client
 
@@ -586,6 +588,19 @@ async def test_on_message_marks_unanswered_question_in_langfuse(monkeypatch):
     score = mock_client.return_value.create_score.call_args.kwargs
     assert score["trace_id"] == "trace-1"
     assert score["name"] == "unanswered"
+
+
+@pytest.mark.asyncio
+async def test_on_message_masks_personal_data_in_the_unanswered_score(monkeypatch):
+    """The score comment leaves the app like a trace, so it must be masked too."""
+    monkeypatch.setenv("DOCS_ONLY", "true")
+
+    _, _, mock_client = await run_turn_with_search(
+        "NO_DOCUMENTS_FOUND", question="Please email me at max@example.com"
+    )
+
+    comment = mock_client.return_value.create_score.call_args.kwargs["comment"]
+    assert "max@example.com" not in comment
 
 
 @pytest.mark.asyncio

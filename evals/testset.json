@@ -21,8 +21,14 @@
     {"type": "multi_page", "input": "What will the total installed capacity be after the second expansion phase?", "calculated": true, "expected_output": "24 MWp (18 MWp today plus 6 MWp in phase two).", "pages": [1, 6]},
     {"type": "multi_page", "input": "What is the combined cost of the solar park and the planned battery storage?", "calculated": true, "expected_output": "17.7 million euros (14.5 million plus 3.2 million).", "pages": [2, 6]},
 
-    {"type": "not_in_document", "input": "Who is the mayor of Nordheide?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []},
-    {"type": "not_in_document", "input": "What electricity price do households pay per kilowatt hour?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []},
-    {"type": "not_in_document", "input": "Which company will supply the battery storage system?", "expected_output": "The document does not contain this information. The assistant may answer from a web search instead, but must say that the answer does not come from the document.", "pages": []}
+    {"type": "reworded", "input": "On which day did the Nordheide Solar Park go into operation?", "expected_output": "On 14 March 2024.", "pages": [1]},
+    {"type": "reworded", "input": "Who was the project manager of the solar park?", "expected_output": "Dr. Maria Keller.", "pages": [1]},
+    {"type": "reworded", "input": "How much money was invested in the solar park in total?", "expected_output": "14.5 million euros.", "pages": [2]},
+    {"type": "reworded", "input": "What was the reason for the biggest downtime in 2024?", "expected_output": "A fault in one of the inverters, on 3 August 2024, lasting eleven hours.", "pages": [4]},
+    {"type": "reworded", "input": "How large is the flock of sheep on the site?", "expected_output": "Around 240 sheep.", "pages": [5]},
+
+    {"type": "not_in_document", "input": "Who is the mayor of Nordheide?", "expected_output": "Not in the document. The assistant must say so.", "pages": []},
+    {"type": "not_in_document", "input": "What electricity price do households pay per kilowatt hour?", "expected_output": "Not in the document. The assistant must say so.", "pages": []},
+    {"type": "not_in_document", "input": "Which company will supply the battery storage system?", "expected_output": "Not in the document. The assistant must say so.", "pages": []}
   ]
 }

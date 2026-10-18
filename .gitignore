@@ -225,3 +225,6 @@ infra/.terraform/
 
 # Knowledge base of the MCP server (built by mcp_server.ingest)
 data/
+
+# Generated eval test report
+evals/report.html

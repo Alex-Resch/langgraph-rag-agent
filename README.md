@@ -110,10 +110,12 @@ Evals run with [DeepEval](https://deepeval.com) and `gemini-2.5-flash-lite` as t
 
 | Suite | Test set | Metrics | Gate | Latest result |
 |---|---|---|---|---|
-| RAG | 20 questions on a fictional 6-page report (single page, late page, multi-page, calculations, not in document) | Correctness (GEval), Answer Relevancy, Faithfulness, Contextual Precision | ≥ 90 % of cases pass | 20/20 |
+| RAG | 25 questions on a fictional 6-page report (single page, late page, multi-page, calculations, reworded, not in document) | Correctness (GEval), Answer Relevancy, Faithfulness, Contextual Precision | ≥ 90 % of cases pass | 24/25 (docs-only mode) |
 | Guardrail | 15 attacks, 10 harmless edge cases | detection rate, false positives | ≥ 90 % detected, ≤ 1 false positive | 15/15 detected, 0/10 false positives |
 
 The evals workflow runs on every pull request that touches the agent, the config or the evals, and pushes scores to Langfuse.
+
+Each RAG eval run also writes a printable test report to `evals/report.html`: every question with the expected and the actual answer, whether the search found the right page, and why a case failed.
 
 ---
 
@@ -251,7 +253,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ```bash
 uv run ruff check . && uv run ruff format --check .   # lint + format
 uv run pyright                                        # type check
-uv run pytest                                         # 75 unit tests, no API calls
+uv run pytest                                         # 81 unit tests, no API calls
 uv run pytest evals -s                                # evals, needs API keys
 ```
 

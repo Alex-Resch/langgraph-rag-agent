@@ -636,3 +636,68 @@ async def test_on_message_does_not_forward_outside_docs_only_mode(monkeypatch):
     mock_forward, _, _ = await run_turn_with_search("NO_DOCUMENTS_FOUND")
 
     mock_forward.assert_not_awaited()
+
+
+@pytest.fixture
+def login_env(monkeypatch):
+    """Configure a password and no fixed user name."""
+    monkeypatch.setenv("CHAT_PASSWORD", "s3cret")
+    monkeypatch.delenv("CHAT_USERNAME", raising=False)
+
+
+@pytest.mark.asyncio
+async def test_check_login_accepts_the_configured_password(login_env):
+    from main import check_login
+
+    user = await check_login("anna", "s3cret")
+
+    assert user is not None and user.identifier == "anna"
+
+
+@pytest.mark.asyncio
+async def test_check_login_rejects_a_wrong_password(login_env):
+    from main import check_login
+
+    assert await check_login("anna", "guess") is None
+
+
+@pytest.mark.asyncio
+async def test_check_login_rejects_another_user_name_if_one_is_set(
+    login_env, monkeypatch
+):
+    from main import check_login
+
+    monkeypatch.setenv("CHAT_USERNAME", "team")
+
+    assert await check_login("anna", "s3cret") is None
+    assert await check_login("team", "s3cret") is not None
+
+
+@pytest.mark.asyncio
+async def test_check_login_never_accepts_an_empty_password(monkeypatch):
+    from main import check_login
+
+    monkeypatch.setenv("CHAT_PASSWORD", "")
+
+    assert await check_login("anna", "") is None
+
+
+def test_login_is_only_required_when_a_password_is_set(monkeypatch):
+    """Without CHAT_PASSWORD the app stays public, with it Chainlit asks for a login."""
+    import importlib
+
+    from chainlit.config import config
+
+    import main
+
+    try:
+        monkeypatch.delenv("CHAT_PASSWORD", raising=False)
+        config.code.password_auth_callback = None
+        importlib.reload(main)
+        assert config.code.password_auth_callback is None
+
+        monkeypatch.setenv("CHAT_PASSWORD", "s3cret")
+        importlib.reload(main)
+        assert config.code.password_auth_callback is not None
+    finally:
+        config.code.password_auth_callback = None

@@ -140,6 +140,23 @@ Run the ingest command again whenever documents change: it rebuilds the knowledg
 
 ---
 
+## Embed on a Website
+
+The chat can also run as a button on any website (Chainlit Copilot widget). Add this before `</body>`:
+
+```html
+<script src="https://your-chatbot.example.com/copilot/index.js"></script>
+<script>
+  window.mountChainlitWidget({ chainlitServer: "https://your-chatbot.example.com" });
+</script>
+```
+
+- Set `allow_origins` in `.chainlit/config.toml` to the website's origin instead of `["*"]`
+- If the chatbot runs on another domain than the website, set `CHAINLIT_COOKIE_SAMESITE=none`
+- The widget is meant for public bots. With `CHAT_PASSWORD` set, the website would have to pass an access token, so internal bots use the normal chat page with login
+
+---
+
 ## Deployment on AWS
 
 `infra/` contains Terraform for a complete AWS setup in `eu-central-1`:
@@ -234,7 +251,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ```bash
 uv run ruff check . && uv run ruff format --check .   # lint + format
 uv run pyright                                        # type check
-uv run pytest                                         # 70 unit tests, no API calls
+uv run pytest                                         # 75 unit tests, no API calls
 uv run pytest evals -s                                # evals, needs API keys
 ```
 
@@ -263,3 +280,4 @@ Optional features, switched on with environment variables (all off by default):
 | `DOCS_ONLY=true` | Answer only from the uploaded documents, without web search. If nothing relevant is found, the bot says so |
 | `HANDOFF_SLACK_WEBHOOK_URL` | In docs-only mode, send unanswered questions with the chat so far to this Slack incoming webhook |
 | `HANDOFF_EMAIL_TO` | Same by email, via `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER` and `SMTP_PASSWORD` |
+| `CHAT_PASSWORD` | Require a login before chatting. Also needs `CHAINLIT_AUTH_SECRET` (create it with `uv run chainlit create-secret`). With `CHAT_USERNAME` set, only that user name is accepted |

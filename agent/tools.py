@@ -69,12 +69,18 @@ def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
 async def web_search_fallback(query: str) -> str | list[dict]:
     """Search the internet – used when no documents are uploaded or they lack relevant info."""
     try:
-        results = await TavilySearchResults(max_results=TAVILY_MAX_RESULTS).ainvoke(query)
+        results = await TavilySearchResults(max_results=TAVILY_MAX_RESULTS).ainvoke(
+            query
+        )
     except UsageLimitExceededError:
         return "Web search failed: usage limit exceeded."
     except Exception as e:  # noqa: BLE001 - a failing web search must not crash the agent
         return f"Web search failed: {e}"
     if isinstance(results, str):
         return results
-    flagged = await asyncio.gather(*(is_injection(result["content"]) for result in results))
-    return [result for result, unsafe in zip(results, flagged, strict=True) if not unsafe]
+    flagged = await asyncio.gather(
+        *(is_injection(result["content"]) for result in results)
+    )
+    return [
+        result for result, unsafe in zip(results, flagged, strict=True) if not unsafe
+    ]

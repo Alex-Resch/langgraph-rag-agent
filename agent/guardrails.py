@@ -1,6 +1,6 @@
 from functools import cache
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_litellm import ChatLiteLLM
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import SpacyNlpEngine
@@ -8,7 +8,7 @@ from presidio_anonymizer import AnonymizerEngine
 from pydantic import BaseModel, Field
 
 from agent.agent_state import AgentState
-from agent.prompts import BLOCKED_MESSAGE, safety_prompt
+from agent.prompts import BLOCKED_MESSAGE, content_safety_prompt, safety_prompt
 from config import GUARD_MODEL
 
 # Only structured PII. Names, places and organisations stay, because users
@@ -46,12 +46,17 @@ def mask_pii(text: str) -> str:
     return anonymizer.anonymize(text, results).text if results else text  # type: ignore[arg-type]
 
 
-async def check_safety(text: str) -> SafetyVerdict:
+async def check_safety(text: str, prompt: SystemMessage | None = None) -> SafetyVerdict:
     llm = ChatLiteLLM(model=GUARD_MODEL, temperature=0)
     verdict = await llm.with_structured_output(SafetyVerdict).ainvoke(
-        [safety_prompt(), HumanMessage(content=text)]
+        [prompt or safety_prompt(), HumanMessage(content=text)]
     )
     return SafetyVerdict.model_validate(verdict)
+
+
+async def is_injection(text: str) -> bool:
+    """Check text from a document or the web for instructions aimed at the assistant."""
+    return (await check_safety(text, content_safety_prompt())).unsafe
 
 
 async def input_guard(state: AgentState):

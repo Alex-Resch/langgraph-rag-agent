@@ -1114,11 +1114,11 @@ wheels = [
 
 [[package]]
 name = "filelock"
-version = "4.0.7"
+version = "4.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/35/f5/14097cca69f53794270d8c7970b48321636302affe3154c7e0ba114eeff9/filelock-4.0.7.tar.gz", hash = "sha256:da5915714a70b55d167fdc7e251ad91302b0a36816fb574dfafae8f4f2c9bb21", size = 248489, upload-time = "2026-09-29T23:04:05.995Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/28/3893324bcadf8f89b1616637468d766af3f625008c0735bf704fdfa86617/filelock-4.2.4.tar.gz", hash = "sha256:c6d8663535e1650ee430507b4ffbac7b464dd64b7647ea0112a9f406499d163d", size = 652444, upload-time = "2026-10-19T01:57:51.001Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/cf/1731c0dd182ee35f80a39e63afb3d03056ea0dd561b7498932b10b2e34d9/filelock-4.0.7-py3-none-any.whl", hash = "sha256:a93c4d93269b339a6af4848342c7e940d0f9928ad95eff64764699e5f1bf8a6a", size = 109242, upload-time = "2026-09-29T23:04:04.696Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/1b/5e74289a1878e666bb4b65fe5805a04cafcac2aa5f519ef1ead67ef91c56/filelock-4.2.4-py3-none-any.whl", hash = "sha256:301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e", size = 162475, upload-time = "2026-10-19T01:57:49.419Z" },
 ]
 
 [[package]]
@@ -2011,7 +2011,7 @@ dev = [
 
 [[package]]
 name = "langgraph-sdk"
-version = "0.4.5"
+version = "0.4.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -2020,9 +2020,9 @@ dependencies = [
     { name = "orjson" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/9c/7ff305b366ce986052a27dc5946839bef2823b3567664cbad22e294dff5a/langgraph_sdk-0.4.5.tar.gz", hash = "sha256:d49a98a2ee8e0c494b101a7caf8061c8b4b94d3ee5ada0ea2dbe50903a5487b1", size = 349783, upload-time = "2026-09-21T14:42:55.732Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/33/dd9cd2218197debafee7b305a975355afa1c14278200019122d11717ce96/langgraph_sdk-0.4.10.tar.gz", hash = "sha256:d8d7afd326b4df42ddc0878b7fbf53f03c3237c664c236bf5bac4ab16fc38ed9", size = 360685, upload-time = "2026-10-26T19:59:45.313Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/a9/71a6499f3481bc00bf4f42a17cb81caf19a02fce762db356626d7214e2c2/langgraph_sdk-0.4.5-py3-none-any.whl", hash = "sha256:e03ef033a20d21288af496e9b6c08ae3afcc1b58dc5abcd37575bfd1a93045de", size = 162304, upload-time = "2026-09-21T14:42:54.623Z" },
+    { url = "https://files.pythonhosted.org/packages/36/0c/c14a178c018fffdb818a7e098cb28d6ecead53a07e161a03c083003ff137/langgraph_sdk-0.4.10-py3-none-any.whl", hash = "sha256:306ede340814e79332812e3b5a8bda2587a09657c95e14e5c7af3370e06c22fe", size = 167854, upload-time = "2026-10-26T19:59:44.075Z" },
 ]
 
 [[package]]
@@ -4981,11 +4981,11 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "84.0.0"
+version = "84.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz", hash = "sha256:f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73", size = 1168449, upload-time = "2026-08-08T18:27:58.365Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz", hash = "sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc", size = 1230289, upload-time = "2026-10-20T19:01:37.742Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl", hash = "sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670", size = 818216, upload-time = "2026-08-08T18:27:56.719Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/55/6dc6d6bb953bdfc52519a0059592c52b6e3b8ad51cf8256dffceb55b0610/setuptools-84.2.1-py3-none-any.whl", hash = "sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2", size = 876263, upload-time = "2026-10-20T19:01:35.678Z" },
 ]
 
 [[package]]

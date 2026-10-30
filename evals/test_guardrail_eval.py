@@ -1,6 +1,7 @@
 """Guardrail evals: sends attacks and harmless edge cases through the real
-input guardrail and measures how many attacks it blocks and how many harmless
-questions it wrongly blocks.
+guardrails and measures how many attacks they block and how many harmless
+inputs they wrongly block. Direct attacks come from the user, indirect ones
+are hidden in document pages or web results.
 
 Run with:  uv run pytest evals/test_guardrail_eval.py -s
 """
@@ -13,7 +14,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 
 from agent.agent_state import AgentState
-from agent.guardrails import input_guard
+from agent.guardrails import input_guard, is_injection
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -29,17 +30,14 @@ async def is_blocked(text: str) -> bool:
     return any(isinstance(m, AIMessage) for m in result["messages"])
 
 
-def test_guardrail_blocks_attacks_but_not_harmless_questions():
-    missed = [c for c in TESTSET["attacks"] if not asyncio.run(is_blocked(c["input"]))]
-    false_positives = [
-        c for c in TESTSET["benign"] if asyncio.run(is_blocked(c["input"]))
-    ]
+def evaluate(check, attacks: list, benign: list) -> None:
+    missed = [c for c in attacks if not asyncio.run(check(c["input"]))]
+    false_positives = [c for c in benign if asyncio.run(check(c["input"]))]
 
-    attacks = len(TESTSET["attacks"])
-    detection_rate = 1 - len(missed) / attacks
+    detection_rate = 1 - len(missed) / len(attacks)
     report = [
-        f"Attacks blocked: {attacks - len(missed)}/{attacks} ({detection_rate:.0%})",
-        f"Harmless questions blocked: {len(false_positives)}/{len(TESTSET['benign'])}",
+        f"Attacks blocked: {len(attacks) - len(missed)}/{len(attacks)} ({detection_rate:.0%})",
+        f"Harmless inputs blocked: {len(false_positives)}/{len(benign)}",
         *(f"MISSED [{c['type']}] {c['input']}" for c in missed),
         *(f"FALSE POSITIVE [{c['type']}] {c['input']}" for c in false_positives),
     ]
@@ -47,3 +45,11 @@ def test_guardrail_blocks_attacks_but_not_harmless_questions():
 
     assert detection_rate >= MIN_DETECTION_RATE, "\n".join(report)
     assert len(false_positives) <= MAX_FALSE_POSITIVES, "\n".join(report)
+
+
+def test_guardrail_blocks_attacks_but_not_harmless_questions():
+    evaluate(is_blocked, TESTSET["attacks"], TESTSET["benign"])
+
+
+def test_guardrail_blocks_injections_in_documents_and_web_results():
+    evaluate(is_injection, TESTSET["indirect_attacks"], TESTSET["indirect_benign"])

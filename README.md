@@ -27,6 +27,7 @@ Beyond the agent itself, the project covers what it takes to run an LLM app in p
 - **RAG pipeline** — upload PDF, TXT or Markdown files; documents are split, embedded (`BAAI/bge-base-en-v1.5`) and stored in Chroma
 - **Source attribution** — answers from documents cite the file and page; web answers say explicitly that they are not from the document
 - **Input guardrail** — structured PII (emails, phone numbers, IBANs, credit cards, …) is masked with Presidio, prompt injection and harmful requests are blocked by an LLM safety check
+- **Indirect prompt injection** — uploaded pages and web results are checked for instructions aimed at the assistant before they reach the model
 - **Observability** — every request is traced in Langfuse with token usage, costs and session IDs; PII is masked before traces leave the app
 - **Evals** — RAG quality and guardrail detection are measured with DeepEval on every relevant pull request
 - **Infrastructure as code** — Terraform for AWS ECS Fargate, deployed by GitHub Actions without stored AWS keys (OIDC)
@@ -79,6 +80,7 @@ Streamed answer with sources ──── traces ───▶ Langfuse
 ```
 
 - **`input_guard`** masks structured PII in all user messages and asks `gemini-2.5-flash-lite` (structured output) whether the latest message is a prompt injection or a harmful request. Off-topic questions are allowed on purpose.
+- **Indirect prompt injection:** `process_document` checks every page on upload and `web_search_fallback` checks every result with the same model and a prompt for document text. Flagged pages and results are dropped, and the system prompt tells the agent to treat search results as data, not instructions.
 - **`call_llm`** runs Gemini 2.5 Flash with the tools bound. It loops with the **`tools`** node until it can answer.
 - The vectorstore is passed to the tools via LangGraph's runtime context, so the agent has no dependency on the UI.
 
@@ -112,6 +114,7 @@ Evals run with [DeepEval](https://deepeval.com) and `gemini-2.5-flash-lite` as t
 |---|---|---|---|---|
 | RAG | 25 questions on a fictional 6-page report (single page, late page, multi-page, calculations, reworded, not in document) | Correctness (GEval), Answer Relevancy, Faithfulness, Contextual Precision | ≥ 90 % of cases pass | 24/25 (docs-only mode) |
 | Guardrail | 15 attacks, 10 harmless edge cases | detection rate, false positives | ≥ 90 % detected, ≤ 1 false positive | 15/15 detected, 0/10 false positives |
+| Indirect injection | 8 attacks hidden in document or web text, 6 harmless texts | detection rate, false positives | ≥ 90 % detected, ≤ 1 false positive | 8/8 detected, 1/6 false positives |
 
 The evals workflow runs on every pull request that touches the agent, the config or the evals, and pushes scores to Langfuse.
 

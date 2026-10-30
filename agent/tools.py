@@ -1,3 +1,5 @@
+import asyncio
+
 from chainlit.element import Element
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.tools.tavily_search import TavilySearchResults
@@ -8,6 +10,7 @@ from langgraph.prebuilt import ToolRuntime
 from tavily import UsageLimitExceededError
 
 from agent.agent_state import AgentContext
+from agent.guardrails import is_injection
 from config import CHUNK_OVERLAP, CHUNK_SIZE, SIMILARITY_THRESHOLD, TAVILY_MAX_RESULTS
 
 NO_DOCUMENTS_FOUND = "NO_DOCUMENTS_FOUND"
@@ -26,6 +29,8 @@ def get_document_loader(element: Element):
 async def process_document(element: Element, vectorstore: VectorStore) -> str:
     loader = get_document_loader(element)
     pages = loader.load()
+    flagged = await asyncio.gather(*(is_injection(page.page_content) for page in pages))
+    pages = [page for page, unsafe in zip(pages, flagged, strict=True) if not unsafe]
     for page in pages:
         page.metadata["source"] = element.name
     intro_text = "\n".join([page.page_content for page in pages[:2]])
@@ -61,12 +66,15 @@ def search_documents(query: str, runtime: ToolRuntime[AgentContext]) -> str:
 
 
 @tool
-def web_search_fallback(query: str) -> str:
+async def web_search_fallback(query: str) -> str | list[dict]:
     """Search the internet – used when no documents are uploaded or they lack relevant info."""
     try:
-        search = TavilySearchResults(max_results=TAVILY_MAX_RESULTS).invoke(query)
-        return search
+        results = await TavilySearchResults(max_results=TAVILY_MAX_RESULTS).ainvoke(query)
     except UsageLimitExceededError:
         return "Web search failed: usage limit exceeded."
     except Exception as e:  # noqa: BLE001 - a failing web search must not crash the agent
         return f"Web search failed: {e}"
+    if isinstance(results, str):
+        return results
+    flagged = await asyncio.gather(*(is_injection(result["content"]) for result in results))
+    return [result for result, unsafe in zip(results, flagged, strict=True) if not unsafe]

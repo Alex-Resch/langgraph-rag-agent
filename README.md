@@ -70,8 +70,8 @@ User message
 │  ┌──────────────┐  tool calls  ┌──────────────────────────┐  │
 │  │   call_llm   │─────────────▶│          tools           │  │
 │  │              │◀─────────────│ search_documents (Chroma)│  │
-│  │ Gemini 2.5   │   results    │ web_search_fallback      │  │
-│  │ Flash        │              │ (Tavily)                 │  │
+│  │ Gemini 3.5   │   results    │ web_search_fallback      │  │
+│  │ Flash-Lite   │              │ (Tavily)                 │  │
 │  └──────┬───────┘              └──────────────────────────┘  │
 │         │ final answer                                       │
 └─────────┼────────────────────────────────────────────────────┘
@@ -81,7 +81,7 @@ Streamed answer with sources ──── traces ───▶ Langfuse
 
 - **`input_guard`** masks structured PII in all user messages and asks `gemini-2.5-flash-lite` (structured output) whether the latest message is a prompt injection or a harmful request. Off-topic questions are allowed on purpose.
 - **Indirect prompt injection:** `process_document` checks every page on upload and `web_search_fallback` checks every result with the same model and a prompt for document text. Flagged pages and results are dropped, and the system prompt tells the agent to treat search results as data, not instructions.
-- **`call_llm`** runs Gemini 2.5 Flash with the tools bound. It loops with the **`tools`** node until it can answer.
+- **`call_llm`** runs Gemini 3.5 Flash-Lite with the tools bound. It loops with the **`tools`** node until it can answer.
 - The vectorstore is passed to the tools via LangGraph's runtime context, so the agent has no dependency on the UI.
 
 ### Why there is no output guardrail
@@ -198,7 +198,7 @@ The setup has been deployed, tested end to end and destroyed again — it is mea
 |---|---|
 | Orchestration | [LangGraph](https://github.com/langchain-ai/langgraph) |
 | LLM interface | [LiteLLM](https://github.com/BerriAI/litellm) via `ChatLiteLLM` |
-| Models | Gemini 2.5 Flash (agent) · Gemini 2.5 Flash Lite (guardrail, eval judge) |
+| Models | Gemini 3.5 Flash-Lite (agent) · Gemini 2.5 Flash-Lite (guardrail, eval judge) |
 | Vector store | [Chroma](https://www.trychroma.com/) |
 | Embeddings | `BAAI/bge-base-en-v1.5` via HuggingFace |
 | Web search | [Tavily](https://tavily.com/) |
@@ -270,7 +270,7 @@ Key constants in `config.py`:
 
 | Constant | Default | Description |
 |---|---|---|
-| `DEFAULT_MODEL` | `gemini/gemini-2.5-flash` | Agent model |
+| `DEFAULT_MODEL` | `gemini/gemini-3.5-flash-lite` | Agent model |
 | `GUARD_MODEL` | `gemini/gemini-2.5-flash-lite` | Model for the safety check |
 | `EMBEDDING_MODEL` | `BAAI/bge-base-en-v1.5` | Embedding model for the vectorstore |
 | `CHUNK_SIZE` | 500 | Max characters per document chunk |

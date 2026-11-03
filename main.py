@@ -142,7 +142,7 @@ async def on_message(message: cl.Message):
                     if not model:
                         return
 
-                    llm = ChatLiteLLM(model=model, temperature=0)
+                    llm = ChatLiteLLM(model=model)
                     summary_prompt = SystemMessage(
                         content=(
                             "You are an assistant. Create a short, meaningful summary "

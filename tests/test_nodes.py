@@ -77,12 +77,11 @@ async def test_call_llm_uses_model_from_state():
     mock_llm.bind_tools.return_value = mock_llm_with_tools
 
     with patch("agent.nodes.ChatLiteLLM", return_value=mock_llm) as MockChatLiteLLM:
-        await call_llm(make_state(model="gemini/gemini-2.5-flash"))
+        await call_llm(make_state(model="gemini/gemini-3.5-flash-lite"))
 
     MockChatLiteLLM.assert_called_once_with(
-        model="gemini/gemini-2.5-flash",
+        model="gemini/gemini-3.5-flash-lite",
         streaming=True,
-        temperature=0.0,
         stream_options={"include_usage": True},
     )
 

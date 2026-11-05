@@ -141,7 +141,7 @@ claude mcp add --transport http knowledge-base http://127.0.0.1:8001/mcp
 
 Run the ingest command again whenever documents change: it rebuilds the knowledge base from scratch, so removed files disappear from the search. Restart the server afterwards.
 
-**In production** a knowledge base server would also need what this demo leaves out on purpose: authentication (MCP supports OAuth), a deployment as a container, and a scheduled ingest from the real source, such as Confluence or SharePoint, instead of a local folder. The server only listens on `127.0.0.1` for that reason.
+**In production** a knowledge base server would also need what this demo leaves out on purpose: authentication (MCP supports OAuth), a deployment as a container, and a scheduled ingest from the real source, such as Confluence or SharePoint, instead of a local folder. The server only listens on `127.0.0.1` for that reason. Because of that, the MCP SDK also turns on its DNS rebinding protection and rejects requests whose `Origin` header comes from another website, which a test checks.
 
 ---
 

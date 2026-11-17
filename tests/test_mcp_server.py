@@ -5,9 +5,21 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.embeddings import DeterministicFakeEmbedding
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
+from starlette.testclient import TestClient
 
 from mcp_server.ingest import load_folder
 from mcp_server.server import mcp
+
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "test", "version": "1.0"},
+    },
+}
 
 LOAN_TEXT = "The loan was provided by Sparkasse Nordheide at 3.1 percent interest."
 
@@ -85,3 +97,25 @@ def test_load_folder_reads_supported_files_with_file_name(tmp_path):
     pages = load_folder(str(tmp_path))
 
     assert sorted(p.metadata["source"] for p in pages) == ["guide.md", "notes.txt"]
+
+
+def test_http_rejects_requests_from_other_websites():
+    """A foreign Origin is blocked (DNS rebinding protection), a local one is allowed."""
+    headers = {"Accept": "application/json, text/event-stream"}
+
+    with TestClient(
+        mcp.streamable_http_app(), base_url="http://127.0.0.1:8001"
+    ) as client:
+        foreign = client.post(
+            "/mcp",
+            json=INITIALIZE,
+            headers=headers | {"Origin": "https://evil.example"},
+        )
+        local = client.post(
+            "/mcp",
+            json=INITIALIZE,
+            headers=headers | {"Origin": "http://localhost:8001"},
+        )
+
+    assert foreign.status_code == 403
+    assert local.status_code == 200

@@ -165,9 +165,9 @@ async def test_on_settings_update_stores_selected_model():
     from main import on_settings_update
 
     with patch("main.cl.user_session") as mock_session:
-        await on_settings_update({"model": "gemini/gemini-2.5-flash"})
+        await on_settings_update({"model": "gemini/gemini-3.5-flash-lite"})
 
-    mock_session.set.assert_called_once_with("model", "gemini/gemini-2.5-flash")
+    mock_session.set.assert_called_once_with("model", "gemini/gemini-3.5-flash-lite")
 
 
 @pytest.mark.asyncio

@@ -17,7 +17,6 @@ async def call_llm(state: AgentState):
     llm = ChatLiteLLM(
         model=state["model"],
         streaming=True,
-        temperature=0.0,
         stream_options={"include_usage": True},
     )
     llm_with_tools = llm.bind_tools(active_tools())

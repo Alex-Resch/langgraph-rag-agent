@@ -30,7 +30,7 @@ ROWS = [
 
 def render(rows=ROWS):
     return render_report(
-        rows, model="gemini-2.5-flash", docs_only=True, min_pass_rate=0.9
+        rows, model="gemini-3.5-flash-lite", docs_only=True, min_pass_rate=0.9
     )
 
 
